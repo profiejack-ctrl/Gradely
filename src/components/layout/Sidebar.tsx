@@ -45,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
   const items = isTeacher ? teacherItems : studentItems;
 
   return (
-    <aside className="w-full lg:w-60 shrink-0 flex flex-col gap-1.5">
+    <aside className={`w-full lg:w-60 shrink-0 flex flex-col gap-1.5 ${!isTeacher ? 'hidden lg:flex' : ''}`}>
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2.5 flex flex-row lg:flex-col gap-1 overflow-x-auto lg:overflow-visible shadow-xs">
         <div className="hidden lg:block px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
           {isTeacher ? (isDean ? 'Dean Administration' : 'Instructor Portal') : 'Student Portal'}

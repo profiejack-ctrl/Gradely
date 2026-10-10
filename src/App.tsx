@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
+import { StudentBottomNav } from './components/layout/StudentBottomNav';
 import { Toast, ToastMessage } from './components/common/Toast';
 
 // Teacher Views
@@ -36,9 +37,9 @@ const MainLayout: React.FC = () => {
 
   React.useEffect(() => {
     if (currentUser) {
-      setCurrentTab(currentUser.role === 'teacher' ? 'dashboard' : 'student-dashboard');
+      setCurrentTab(isTeacher ? 'dashboard' : 'student-dashboard');
     }
-  }, [currentUser?.id, currentUser?.role]);
+  }, [currentUser?.id, currentUser?.role, isTeacher]);
 
   // Deep link arguments
   const [navSectionId, setNavSectionId] = useState<string | undefined>(undefined);
@@ -117,12 +118,12 @@ const MainLayout: React.FC = () => {
       <Navbar onShowToast={showToast} />
 
       {/* Main App Container */}
-      <div className="max-w-7xl w-full mx-auto p-4 sm:p-6 md:p-8 flex-1 flex flex-col lg:flex-row gap-6">
+      <div className="max-w-7xl w-full mx-auto px-3.5 py-3.5 sm:p-6 md:p-8 flex-1 flex flex-col lg:flex-row gap-4 sm:gap-6">
         {/* Navigation Sidebar */}
         <Sidebar currentTab={currentTab} onSelectTab={(tab) => setCurrentTab(tab)} />
 
         {/* Dynamic View Area */}
-        <main className="flex-1 min-w-0">
+        <main className={`flex-1 min-w-0 ${!isTeacher ? 'pb-24 lg:pb-0' : ''}`}>
           {/* Teacher Views */}
           {isTeacher && currentTab === 'dashboard' && (
             <TeacherDashboard
@@ -253,8 +254,16 @@ const MainLayout: React.FC = () => {
       {/* Mandatory First-Time Student Password Change Modal */}
       <ForcePasswordChangeModal onShowToast={showToast} />
 
+      {/* Mobile Bottom Navigation for Students */}
+      {!isTeacher && (
+        <StudentBottomNav
+          currentTab={currentTab}
+          onSelectTab={(tab) => setCurrentTab(tab)}
+        />
+      )}
+
       {/* Toast Notification Container */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+      <div className="fixed bottom-20 lg:bottom-6 right-4 sm:right-6 z-50 flex flex-col gap-2 pointer-events-none max-w-[calc(100vw-2rem)]">
         {toasts.map((toast) => (
           <Toast
             key={toast.id}

@@ -25,7 +25,7 @@ export function NeuSegmentedControl<T extends string>({
   const pyClass = size === 'sm' ? 'py-1 px-2.5 text-xs' : 'py-1.5 px-3 text-xs sm:text-sm';
 
   return (
-    <div className={`bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl flex items-center gap-1 border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto ${className}`}>
+    <div className={`bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl flex items-center gap-1 border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto scrollbar-none touch-pan-x ${className}`}>
       {options.map((option) => {
         const isSelected = option.value === value;
         return (

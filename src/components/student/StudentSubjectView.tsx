@@ -171,11 +171,11 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
     return (
       <div
         key={ass.id}
-        className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5"
+        className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3"
       >
         <div className="space-y-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-white truncate">{ass.title}</h4>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{ass.title}</h4>
             <NeuBadge variant="neutral" size="sm">
               {cat?.name || 'Assessment'}
             </NeuBadge>
@@ -187,23 +187,23 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
             Recorded: {ass.date} {ass.description ? `• ${ass.description}` : ''}
           </p>
           {scoreRec?.remarks && (
-            <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400 mt-0.5">
+            <p className="text-xs font-medium text-orange-600 dark:text-orange-400 mt-0.5">
               Teacher Feedback: "{scoreRec.remarks}"
             </p>
           )}
         </div>
 
-        <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
-          <div className="text-right">
+        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
+          <div className="text-left sm:text-right">
             <div className="text-base font-bold text-slate-900 dark:text-white">
               {earned !== null ? `${earned} / ${ass.maxScore}` : `Not Graded`}
             </div>
-            <div className="text-xs text-slate-500 font-medium">
+            <div className="text-[11px] text-slate-500 font-medium">
               {percentage !== null ? `${percentage}% Earned` : 'Pending'}
             </div>
           </div>
 
-          <div className="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-bold text-xs">
+          <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
             <span className={percentage !== null && percentage >= 75 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
               {percentage !== null ? `${percentage}%` : '—'}
             </span>
@@ -216,28 +216,32 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Top Breadcrumb & Course Selector */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <NeuButton variant="secondary" size="icon" onClick={onBack} title="Back to Overview">
             <ArrowLeft className="w-4 h-4 text-slate-700 dark:text-slate-200" />
           </NeuButton>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-mono font-bold text-[#1E3A8A] dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md">
                 {currentSubject.code}
               </span>
-              <h1 className="text-xl font-bold text-slate-900 dark:text-white">{currentSubject.name}</h1>
+              <h1 className="text-base sm:text-xl font-bold font-heading text-slate-900 dark:text-white truncate">
+                {currentSubject.name}
+              </h1>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{currentSubject.schedule} • Passing: {currentSubject.passingGrade}%</p>
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              {currentSubject.schedule} • Pass Target: {currentSubject.passingGrade}%
+            </p>
           </div>
         </div>
 
         {/* Switch Subject Dropdown */}
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+        <div className="grid grid-cols-1 sm:flex sm:items-center gap-2 w-full sm:w-auto">
           <select
             value={activeSubjectId}
             onChange={(e) => setActiveSubjectId(e.target.value)}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 outline-none cursor-pointer w-full sm:w-auto"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 outline-none cursor-pointer w-full sm:w-auto shadow-xs"
           >
             {enrolledSubjects.map((s) => (
               <option key={s.id} value={s.id} className="bg-white dark:bg-slate-900">
@@ -251,6 +255,7 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
             size="sm"
             onClick={() => onOpenSimulator(currentSubject.id)}
             leftIcon={<Calculator className="w-3.5 h-3.5 text-white" />}
+            className="w-full sm:w-auto justify-center shadow-sm"
           >
             "What-If" Calculator
           </NeuButton>
@@ -258,16 +263,16 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
       </div>
 
       {/* 3-Quarter Period Switcher Tabs */}
-      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100/75 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1.5 bg-slate-100/75 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
         <button
           onClick={() => setActivePeriod('all-semestral')}
-          className={`flex-1 min-w-[130px] px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-center ${
+          className={`px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-center truncate ${
             activePeriod === 'all-semestral'
-              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+              ? 'bg-white dark:bg-slate-900 text-[#1E3A8A] dark:text-blue-300 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          🌟 Semestral Overview ({perf.finalGrade}%)
+          🌟 Semestral ({perf.finalGrade}%)
         </button>
 
         {GRADING_PERIODS.map((p) => {
@@ -277,13 +282,13 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
             <button
               key={p.id}
               onClick={() => setActivePeriod(p.id)}
-              className={`flex-1 min-w-[130px] px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-center ${
+              className={`px-2 sm:px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-center truncate ${
                 isSelected
-                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                  ? 'bg-white dark:bg-slate-900 text-[#F97316] dark:text-orange-400 shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              {p.shortName} ({p.weight}% Wt) • {pSumm?.grade || 0}%
+              {p.shortName} ({p.weight}%) • {pSumm?.grade || 0}%
             </button>
           );
         })}

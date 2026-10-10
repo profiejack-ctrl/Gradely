@@ -183,26 +183,26 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
       </div>
 
       {/* Mode Selector Tabs */}
-      <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl max-w-md">
+      <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-full sm:w-auto sm:max-w-md">
         <button
           onClick={() => setSimulationMode('periods')}
-          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+          className={`py-2 px-3 rounded-lg text-xs font-bold transition-all text-center ${
             simulationMode === 'periods'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400'
           }`}
         >
-          3-Quarter Periods (30/30/40)
+          3-Quarter (30/30/40)
         </button>
         <button
           onClick={() => setSimulationMode('categories')}
-          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+          className={`py-2 px-3 rounded-lg text-xs font-bold transition-all text-center ${
             simulationMode === 'categories'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400'
           }`}
         >
-          Grading Matrix Categories
+          Matrix Categories
         </button>
       </div>
 
@@ -281,14 +281,14 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
               </p>
             </div>
 
-            <div className="flex items-center gap-1.5 self-end sm:self-auto">
-              <NeuButton variant="secondary" size="sm" onClick={() => handleSetAll(100)}>
+            <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">
+              <NeuButton variant="secondary" size="sm" onClick={() => handleSetAll(100)} className="flex-1 sm:flex-initial">
                 100%
               </NeuButton>
-              <NeuButton variant="secondary" size="sm" onClick={() => handleSetAll(85)}>
+              <NeuButton variant="secondary" size="sm" onClick={() => handleSetAll(85)} className="flex-1 sm:flex-initial">
                 85%
               </NeuButton>
-              <NeuButton variant="secondary" size="sm" onClick={() => handleSetAll(75)}>
+              <NeuButton variant="secondary" size="sm" onClick={() => handleSetAll(75)} className="flex-1 sm:flex-initial">
                 75%
               </NeuButton>
             </div>

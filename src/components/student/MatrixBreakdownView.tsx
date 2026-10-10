@@ -55,10 +55,10 @@ export const MatrixBreakdownView: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <div className="text-xs text-slate-500 font-medium">Your Total Grade</div>
-                    <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{perf.finalGrade}%</div>
+                <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
+                  <div className="text-left sm:text-right">
+                    <div className="text-[11px] sm:text-xs text-slate-500 font-medium">Your Semestral Grade</div>
+                    <div className="text-lg sm:text-xl font-bold text-indigo-600 dark:text-indigo-400">{perf.finalGrade}%</div>
                   </div>
                   <NeuBadge variant={perf.isPassing ? 'success' : 'danger'}>
                     {perf.remarks}
@@ -114,12 +114,14 @@ export const MatrixBreakdownView: React.FC = () => {
               </div>
 
               {/* Mathematical Formula Explanation */}
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs text-slate-500">
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  Final Grade = {perf.categories.map((c) => `(${c.rawPercentage}% × ${c.category.weight}%)`).join(' + ')}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-500">
+                <span className="flex items-center gap-1.5 font-medium flex-wrap">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span className="break-words">
+                    Final Grade = {perf.categories.map((c) => `(${c.rawPercentage}% × ${c.category.weight}%)`).join(' + ')}
+                  </span>
                 </span>
-                <span className="font-bold text-slate-900 dark:text-white text-sm">
+                <span className="font-bold text-slate-900 dark:text-white text-sm shrink-0 self-end sm:self-auto">
                   = {perf.finalGrade}%
                 </span>
               </div>
