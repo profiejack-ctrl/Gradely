@@ -78,7 +78,7 @@ export const NeuCircularGauge: React.FC<NeuCircularGaugeProps> = ({
   const getStrokeColor = () => {
     if (color) return color;
     if (percentage >= 90) return '#10b981'; // Emerald
-    if (percentage >= 75) return '#4f46e5'; // Indigo
+    if (percentage >= 75) return '#3b82f6'; // High-Tech Blue
     if (percentage >= 60) return '#f59e0b'; // Amber
     return '#f43f5e'; // Rose
   };
@@ -92,7 +92,7 @@ export const NeuCircularGauge: React.FC<NeuCircularGaugeProps> = ({
         <svg
           width={size}
           height={size}
-          className="transform -rotate-90"
+          className="transform -rotate-90 drop-shadow-xs"
         >
           {/* Track background */}
           <circle
@@ -102,7 +102,7 @@ export const NeuCircularGauge: React.FC<NeuCircularGaugeProps> = ({
             stroke="currentColor"
             strokeWidth={strokeWidth}
             fill="transparent"
-            className="text-slate-100 dark:text-slate-800"
+            className="text-slate-100 dark:text-slate-800/80"
           />
           {/* Active progress */}
           <circle
@@ -121,7 +121,7 @@ export const NeuCircularGauge: React.FC<NeuCircularGaugeProps> = ({
 
         {/* Center content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">
+          <span className="text-2xl font-black font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">
             {Math.round(value * 10) / 10}%
           </span>
           {label && (

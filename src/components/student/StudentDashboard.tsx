@@ -74,7 +74,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Student Welcome Header */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-7 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 shadow-xs">
+      <div className="bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-4 sm:p-7 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
         <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
           <img
             src={student?.avatar}
@@ -94,13 +94,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               Hello, {student?.name}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">
-              Student ID: <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{student?.studentNumber}</span> •{' '}
-              <span className="font-semibold text-slate-800 dark:text-slate-200">{enrolledSection?.name}</span> ({enrolledSection?.gradeLevelOrYear})
+              Student ID: <span className="font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">{student?.studentNumber}</span> •{' '}
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{enrolledSection?.name}</span> <br /> ({enrolledSection?.gradeLevelOrYear})
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto shrink-0">
+        <div className="flex flex-col sm:flex sm:items-center gap-2 w-full sm:w-auto shrink-0">
           <NeuButton
             variant="secondary"
             size="md"
@@ -208,7 +208,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             <BookOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             <span>My Enrolled Courses & Period Standing</span>
           </h2>
-          <span className="text-xs text-slate-400">Click any course to view score breakdown</span>
+          
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -253,7 +253,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                   <div className="py-2.5 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Semestral Final Grade:</span>
-                      <span className="text-xl font-black text-slate-900 dark:text-white">{perf.finalGrade}%</span>
+                      <span className="text-xl font-black font-mono text-slate-900 dark:text-white tabular-nums">{perf.finalGrade}%</span>
                     </div>
 
                     {/* 3-Quarter Period mini breakdown */}
@@ -268,7 +268,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                             <div className="text-[9.5px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
                               {p.shortName} ({p.weight}%)
                             </div>
-                            <div className="text-xs sm:text-sm font-black text-[#1E3A8A] dark:text-blue-300">
+                            <div className="text-xs sm:text-sm font-black font-mono text-[#1E3A8A] dark:text-blue-300 tabular-nums">
                               {pSumm?.grade || 0}%
                             </div>
                           </div>

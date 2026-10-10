@@ -55,11 +55,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#070b14] tech-grid-bg text-slate-900 dark:text-slate-100 transition-colors duration-200">
       {/* Top Header */}
       <header className="p-4 sm:p-6 flex items-center justify-between max-w-6xl w-full mx-auto">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-white dark:bg-slate-900 p-1.5 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-center shrink-0">
+          <div className="w-11 h-11 rounded-2xl bg-white dark:bg-[#0d1424] p-1.5 border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-center shrink-0">
             <img src={logoImg} alt="Gradely Logo" className="w-full h-full object-contain rounded-xl" />
           </div>
           <div>
@@ -73,7 +73,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-600 dark:text-slate-400">
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white/80 dark:bg-[#0d1424]/80 backdrop-blur-md text-xs font-semibold text-slate-600 dark:text-slate-400 shadow-2xs">
             {isSupabaseConfigured ? (
               <>
                 <Cloud className="w-3.5 h-3.5 text-[#22C55E]" />
@@ -89,7 +89,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
 
           <button
             onClick={toggleTheme}
-            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white/80 dark:bg-[#0d1424]/80 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors shadow-2xs"
             title="Toggle theme"
             aria-label="Toggle theme"
           >
@@ -102,10 +102,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
       <main className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-8">
         <div className="max-w-md w-full space-y-5">
           {/* Card Container */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none space-y-6">
+          <div className="bg-white/95 dark:bg-[#0d1424] rounded-3xl p-6 sm:p-8 border border-slate-200/90 dark:border-slate-800/90 shadow-xl dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_20px_40px_-15px_rgba(0,0,0,0.5)] space-y-6">
             {/* Header Badge */}
             <div className="text-center space-y-2">
-              <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 p-2 border border-slate-200 dark:border-slate-700 shadow-md mx-auto flex items-center justify-center">
+              <div className="w-16 h-16 rounded-2xl bg-white dark:bg-[#0a0f1d] p-2 border border-slate-200/90 dark:border-slate-800 shadow-md mx-auto flex items-center justify-center">
                 <img src={logoImg} alt="Gradely Logo" className="w-full h-full object-contain rounded-xl" />
               </div>
               <div>

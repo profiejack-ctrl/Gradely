@@ -63,17 +63,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Welcome Banner */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 sm:p-7 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xs">
+      <div className="bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-6 sm:p-7 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
         <div className="space-y-1.5 max-w-xl">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-              Instructor Dashboard
+            <span className="text-xs font-bold uppercase tracking-wider text-[#1E3A8A] dark:text-blue-400">
+              {isDean ? 'Dean Administration' : 'Instructor Dashboard'}
             </span>
             <NeuBadge variant="primary" size="sm">
               {currentAcademicYear} • {currentSemester}
             </NeuBadge>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
             Welcome back, {currentUser?.name}
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -112,41 +112,41 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {/* Metric Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <NeuCard className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#1E3A8A] dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 flex items-center justify-center shrink-0">
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">{sections.length}</div>
+            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{sections.length}</div>
             <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Classes & Sections</div>
           </div>
         </NeuCard>
 
         <NeuCard className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 flex items-center justify-center shrink-0">
             <BookOpen className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">{subjects.length}</div>
+            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{subjects.length}</div>
             <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Active Subjects</div>
           </div>
         </NeuCard>
 
         <NeuCard className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-900/50 flex items-center justify-center shrink-0">
             <Users className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">{students.length}</div>
+            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{students.length}</div>
             <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Enrolled Students</div>
           </div>
         </NeuCard>
 
         <NeuCard className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/50 flex items-center justify-center shrink-0">
             <Award className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">{overallAvgGrade}%</div>
+            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{overallAvgGrade}%</div>
             <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Class Average Grade</div>
           </div>
         </NeuCard>
@@ -156,13 +156,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div
           onClick={() => onNavigate('gradebook')}
-          className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group"
+          className="p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-[#1E3A8A]/40 dark:hover:border-blue-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
         >
           <div className="flex items-center justify-between">
-            <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+            <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950 text-[#1E3A8A] dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">
               <Table className="w-5 h-5" />
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
+            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#1E3A8A] dark:group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
           </div>
           <div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">Open Gradebook</h3>
@@ -174,10 +174,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
         <div
           onClick={() => onNavigate('attendance')}
-          className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group"
+          className="p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/40 dark:hover:border-emerald-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
         >
           <div className="flex items-center justify-between">
-            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50">
               <CalendarCheck className="w-5 h-5" />
             </div>
             <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
@@ -192,13 +192,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
         <div
           onClick={() => onNavigate('subjects')}
-          className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-700 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group"
+          className="p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-orange-500/40 dark:hover:border-orange-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
         >
           <div className="flex items-center justify-between">
-            <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
+            <div className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950 text-[#F97316] dark:text-orange-400 border border-orange-100 dark:border-orange-900/50">
               <Sliders className="w-5 h-5" />
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 group-hover:translate-x-1 transition-all" />
+            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#F97316] dark:group-hover:text-orange-400 group-hover:translate-x-1 transition-all" />
           </div>
           <div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">Grading Matrices</h3>

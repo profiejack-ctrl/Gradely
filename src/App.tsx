@@ -113,7 +113,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-neu-bg text-neu-text selection:bg-neu-accent/20 transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-transparent text-slate-900 dark:text-slate-100 selection:bg-[#F97316]/20 transition-colors duration-200">
       {/* Top Header */}
       <Navbar onShowToast={showToast} />
 

@@ -241,10 +241,10 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
           <select
             value={activeSubjectId}
             onChange={(e) => setActiveSubjectId(e.target.value)}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 outline-none cursor-pointer w-full sm:w-auto shadow-xs"
+            className="bg-white dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 outline-none cursor-pointer w-full sm:w-auto shadow-xs"
           >
             {enrolledSubjects.map((s) => (
-              <option key={s.id} value={s.id} className="bg-white dark:bg-slate-900">
+              <option key={s.id} value={s.id} className="bg-white dark:bg-[#0d1424]">
                 {s.code} - {s.name}
               </option>
             ))}
@@ -263,12 +263,12 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
       </div>
 
       {/* 3-Quarter Period Switcher Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1.5 bg-slate-100/75 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1.5 bg-slate-100/80 dark:bg-[#090e1a]/80 rounded-2xl border border-slate-200/90 dark:border-slate-800/90">
         <button
           onClick={() => setActivePeriod('all-semestral')}
           className={`px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-center truncate ${
             activePeriod === 'all-semestral'
-              ? 'bg-white dark:bg-slate-900 text-[#1E3A8A] dark:text-blue-300 shadow-xs'
+              ? 'bg-white dark:bg-[#0d1424] text-[#1E3A8A] dark:text-blue-300 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
@@ -284,7 +284,7 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
               onClick={() => setActivePeriod(p.id)}
               className={`px-2 sm:px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-center truncate ${
                 isSelected
-                  ? 'bg-white dark:bg-slate-900 text-[#F97316] dark:text-orange-400 shadow-xs'
+                  ? 'bg-white dark:bg-[#0d1424] text-[#F97316] dark:text-orange-400 shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >

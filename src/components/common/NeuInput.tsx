@@ -35,7 +35,7 @@ export const NeuInput: React.FC<NeuInputProps> = ({
         )}
         <input
           id={inputId}
-          className={`w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition-all duration-150 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs ${
+          className={`w-full rounded-xl bg-white dark:bg-[#090e1a] border border-slate-200/90 dark:border-slate-800 px-3.5 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition-all duration-150 focus:border-[#1E3A8A] dark:focus:border-blue-500 focus:ring-2 focus:ring-[#1E3A8A]/15 dark:focus:ring-blue-500/25 shadow-xs ${
             leftIcon ? 'pl-9' : ''
           } ${rightIcon ? 'pr-9' : ''} ${error ? 'border-rose-500 ring-2 ring-rose-500/20' : ''} ${className}`}
           {...props}
@@ -79,7 +79,7 @@ export const NeuTextarea: React.FC<NeuTextareaProps> = ({
       )}
       <textarea
         id={inputId}
-        className={`w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition-all duration-150 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs resize-y min-h-[80px] ${
+        className={`w-full rounded-xl bg-white dark:bg-[#090e1a] border border-slate-200/90 dark:border-slate-800 px-3.5 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition-all duration-150 focus:border-[#1E3A8A] dark:focus:border-blue-500 focus:ring-2 focus:ring-[#1E3A8A]/15 dark:focus:ring-blue-500/25 shadow-xs resize-y min-h-[80px] ${
           error ? 'border-rose-500 ring-2 ring-rose-500/20' : ''
         } ${className}`}
         {...props}
@@ -120,13 +120,13 @@ export const NeuSelect: React.FC<NeuSelectProps> = ({
       <div className="relative">
         <select
           id={inputId}
-          className={`w-full appearance-none rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none transition-all duration-150 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 shadow-xs cursor-pointer ${
+          className={`w-full appearance-none rounded-xl bg-white dark:bg-[#090e1a] border border-slate-200/90 dark:border-slate-800 px-3.5 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none transition-all duration-150 focus:border-[#1E3A8A] dark:focus:border-blue-500 focus:ring-2 focus:ring-[#1E3A8A]/15 dark:focus:ring-blue-500/25 shadow-xs cursor-pointer ${
             error ? 'border-rose-500 ring-2 ring-rose-500/20' : ''
           } ${className}`}
           {...props}
         >
           {options.map((opt) => (
-            <option key={opt.value} value={opt.value} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+            <option key={opt.value} value={opt.value} className="bg-white dark:bg-[#090e1a] text-slate-900 dark:text-slate-100">
               {opt.label}
             </option>
           ))}

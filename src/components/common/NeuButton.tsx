@@ -30,30 +30,30 @@ export const NeuButton: React.FC<NeuButtonProps> = ({
 
   const getVariantClasses = () => {
     if (active) {
-      return 'bg-orange-50 dark:bg-orange-950/60 text-[#F97316] dark:text-orange-400 border border-orange-200 dark:border-orange-800 font-bold';
+      return 'bg-orange-50 dark:bg-orange-950/60 text-[#F97316] dark:text-orange-400 border border-orange-200 dark:border-orange-800 font-bold shadow-xs';
     }
 
     switch (variant) {
       case 'primary':
-        return 'bg-[#F97316] hover:bg-[#ea580c] active:bg-[#c2410c] text-white font-bold shadow-sm hover:shadow transition-all';
+        return 'bg-[#F97316] hover:bg-[#ea580c] active:bg-[#c2410c] text-white font-bold shadow-[0_1px_2px_0_rgba(249,115,22,0.3),inset_0_1px_0_0_rgba(255,255,255,0.25)] hover:shadow-[0_4px_12px_0_rgba(249,115,22,0.35)] transition-all';
       case 'accent':
-        return 'bg-[#1E3A8A] hover:bg-[#172554] active:bg-[#0f172a] text-white font-bold shadow-sm transition-all';
+        return 'bg-[#1E3A8A] hover:bg-[#1e40af] active:bg-[#172554] text-white font-bold shadow-[0_1px_2px_0_rgba(30,58,138,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)] hover:shadow-[0_4px_12px_0_rgba(30,58,138,0.35)] transition-all';
       case 'danger':
-        return 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold shadow-sm transition-all';
+        return 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold shadow-xs hover:shadow-sm transition-all';
       case 'success':
-        return 'bg-[#22C55E] hover:bg-[#16a34a] active:bg-[#15803d] text-white font-bold shadow-sm transition-all';
+        return 'bg-[#22C55E] hover:bg-[#16a34a] active:bg-[#15803d] text-white font-bold shadow-xs transition-all';
       case 'icon':
       case 'secondary':
       case 'inset':
       default:
-        return 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm transition-all';
+        return 'bg-white dark:bg-[#0d1424] text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs hover:shadow-sm transition-all';
     }
   };
 
   return (
     <button
       disabled={disabled || isLoading}
-      className={`inline-flex items-center justify-center select-none outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 ${sizeClasses} ${getVariantClasses()} ${className}`}
+      className={`inline-flex items-center justify-center select-none outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A8A]/40 dark:focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 active:scale-[0.98] active:translate-y-px disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 transition-all duration-150 ${sizeClasses} ${getVariantClasses()} ${className}`}
       {...props}
     >
       {isLoading ? (

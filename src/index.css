@@ -6,16 +6,18 @@
   --bg-main: #f8fafc;
   --bg-card: #ffffff;
   --text-primary: #0f172a;
-  --text-secondary: #64748b;
+  --text-secondary: #475569;
   --border-subtle: #e2e8f0;
+  --border-highlight: rgba(255, 255, 255, 0.85);
 }
 
 .dark {
-  --bg-main: #0b0f17;
-  --bg-card: #131b2e;
+  --bg-main: #070b14;
+  --bg-card: #0d1424;
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --border-subtle: #1e293b;
+  --border-highlight: rgba(255, 255, 255, 0.05);
 }
 
 body {
@@ -26,30 +28,55 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Institutional Tabular Figures for Grades, IDs, Metrics */
+.tabular-nums, table, [data-tabular="true"] {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
 h1, h2, h3, h4, h5, h6, .font-heading {
   font-family: 'Poppins', 'Inter', sans-serif;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
-/* Modern Clean Utilities */
-.clean-card {
+/* High-Tech Institutional Dashboard Utilities */
+.tech-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.02);
-}
-
-.clean-card-hover {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.02);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.03), 0 1px 2px -1px rgb(0 0 0 / 0.02), inset 0 1px 0 0 var(--border-highlight);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.clean-card-hover:hover {
-  box-shadow: 0 4px 12px 0 rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.04);
-  transform: translateY(-1px);
+
+.tech-card-hover {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.03), 0 1px 2px -1px rgb(0 0 0 / 0.02), inset 0 1px 0 0 var(--border-highlight);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Custom Scrollbars */
+.tech-card-hover:hover {
+  border-color: rgba(30, 58, 138, 0.35);
+  box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.06), 0 8px 10px -6px rgb(0 0 0 / 0.04), inset 0 1px 0 0 var(--border-highlight);
+  transform: translateY(-1.5px);
+}
+
+.dark .tech-card-hover:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 10px 30px -5px rgb(0 0 0 / 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Subtle Technical Ambient Mesh Background */
+.tech-grid-bg {
+  background-image: radial-gradient(rgba(30, 58, 138, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.dark .tech-grid-bg {
+  background-image: radial-gradient(rgba(59, 130, 246, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Custom Sleek Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -62,15 +89,30 @@ h1, h2, h3, h4, h5, h6, .font-heading {
   border-radius: 9999px;
 }
 .dark ::-webkit-scrollbar-thumb {
+  background: #1e293b;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
   background: #334155;
 }
 
-/* Subtle animations */
+/* Subtle Smooth Animations */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.15s ease-out forwards;
+  animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

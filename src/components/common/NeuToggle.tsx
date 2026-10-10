@@ -25,7 +25,7 @@ export function NeuSegmentedControl<T extends string>({
   const pyClass = size === 'sm' ? 'py-1 px-2.5 text-xs' : 'py-1.5 px-3 text-xs sm:text-sm';
 
   return (
-    <div className={`bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl flex items-center gap-1 border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto scrollbar-none touch-pan-x ${className}`}>
+    <div className={`bg-slate-100/90 dark:bg-[#090e1a] p-1 rounded-xl flex items-center gap-1 border border-slate-200/90 dark:border-slate-800 overflow-x-auto scrollbar-none touch-pan-x shadow-2xs ${className}`}>
       {options.map((option) => {
         const isSelected = option.value === value;
         return (
@@ -33,10 +33,10 @@ export function NeuSegmentedControl<T extends string>({
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-150 outline-none select-none whitespace-nowrap ${pyClass} ${
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-150 outline-none select-none whitespace-nowrap active:scale-[0.98] ${pyClass} ${
               isSelected
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                ? 'bg-white dark:bg-[#0d1424] text-slate-900 dark:text-white shadow-xs font-bold border border-slate-200/70 dark:border-slate-750'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
             }`}
           >
             {option.icon && <span className="text-current shrink-0">{option.icon}</span>}

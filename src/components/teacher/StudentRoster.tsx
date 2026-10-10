@@ -218,7 +218,7 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
                       <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                         {displayLastFirst ? formatLastFirst(student.name) : student.name}
                       </h3>
-                      <span className="text-xs font-mono font-bold text-[#F97316] dark:text-orange-400">
+                      <span className="text-xs font-mono font-bold text-[#F97316] dark:text-orange-400 tabular-nums">
                         {student.studentNumber || 'No ID Assigned'}
                       </span>
                     </div>
@@ -227,7 +227,7 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleOpenEdit(student)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      className="p-1 rounded-lg text-slate-400 hover:text-[#1E3A8A] dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                       title="Edit Student"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
@@ -260,7 +260,7 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
                     <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Avg Grade:</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-900 dark:text-white">{avgGrade}%</span>
+                    <span className="text-sm font-bold font-mono text-slate-900 dark:text-white tabular-nums">{avgGrade}%</span>
                     <NeuBadge variant={avgGrade >= 75 ? 'success' : 'danger'} size="sm">
                       {avgGrade >= 75 ? 'Passing' : 'Review'}
                     </NeuBadge>

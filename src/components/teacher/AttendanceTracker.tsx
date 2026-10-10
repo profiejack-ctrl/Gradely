@@ -253,14 +253,14 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
       </div>
 
       {/* 3-Quarter Period Tabs */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-2 shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {/* Prelim Tab */}
           <button
             onClick={() => setActivePeriod('prelim')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activePeriod === 'prelim'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-[#1E3A8A] text-white shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
             }`}
           >
@@ -269,7 +269,7 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
               className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                 activePeriod === 'prelim'
                   ? 'bg-white/20 text-white'
-                  : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+                  : 'bg-blue-100 dark:bg-blue-950 text-[#1E3A8A] dark:text-blue-300'
               }`}
             >
               {prelimSessions} Sessions
@@ -281,7 +281,7 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
             onClick={() => setActivePeriod('midterm')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activePeriod === 'midterm'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-[#1E3A8A] text-white shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
             }`}
           >
@@ -290,7 +290,7 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
               className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                 activePeriod === 'midterm'
                   ? 'bg-white/20 text-white'
-                  : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+                  : 'bg-blue-100 dark:bg-blue-950 text-[#1E3A8A] dark:text-blue-300'
               }`}
             >
               {midtermSessions} Sessions
@@ -302,7 +302,7 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
             onClick={() => setActivePeriod('finals')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activePeriod === 'finals'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-[#1E3A8A] text-white shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
             }`}
           >
@@ -311,7 +311,7 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
               className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                 activePeriod === 'finals'
                   ? 'bg-white/20 text-white'
-                  : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+                  : 'bg-blue-100 dark:bg-blue-950 text-[#1E3A8A] dark:text-blue-300'
               }`}
             >
               {finalsSessions} Sessions
@@ -511,10 +511,8 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* SESSION ROLL CALL SHEET                                                  */}
-      {/* ========================================================================= */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
+      {/* SESSION ROLL CALL SHEET */}
+      <div className="bg-white dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">

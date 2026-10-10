@@ -27,7 +27,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
-  const { currentUser, theme, toggleTheme, isTeacher, signOut } = useAuth();
+  const { currentUser, theme, toggleTheme, isTeacher, isDean, signOut } = useAuth();
   const { getRawData, importData } = useData();
   const [showDataMenu, setShowDataMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -67,11 +67,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 py-2.5 px-4 sm:px-6 md:px-8 transition-colors duration-200 shadow-xs">
+    <header className="sticky top-0 z-40 w-full bg-white/80 dark:bg-[#070b14]/85 backdrop-blur-xl border-b border-slate-200/90 dark:border-slate-800/80 py-2.5 px-4 sm:px-6 md:px-8 transition-colors duration-200 shadow-xs">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         {/* Gradely Brand Logo & Tagline */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#0d1424] p-1 border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-center shrink-0">
             <img
               src={logoImg}
               alt="Gradely Logo"
@@ -83,8 +83,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
               <span className="text-lg sm:text-xl font-bold font-heading tracking-tight text-[#1E3A8A] dark:text-blue-400">
                 Gradely
               </span>
-              <NeuBadge variant={isTeacher ? 'primary' : 'success'} size="sm">
-                {isTeacher ? 'Faculty' : 'Student'}
+              <NeuBadge variant={isDean ? 'primary' : isTeacher ? 'info' : 'success'} size="sm">
+                {isDean ? 'Dean' : isTeacher ? 'Faculty' : 'Student'}
               </NeuBadge>
             </div>
             <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 hidden sm:block">
@@ -139,7 +139,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
             {showUserMenu && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setShowUserMenu(false)} />
-                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl p-3 z-30 border border-slate-200 dark:border-slate-800 shadow-xl text-xs space-y-2 animate-fade-in">
+                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#0d1424] rounded-2xl p-3 z-30 border border-slate-200 dark:border-slate-800 shadow-xl text-xs space-y-2 animate-fade-in">
                   <div className="flex items-center gap-3 pb-2.5 border-b border-slate-100 dark:border-slate-800">
                     <img
                       src={currentUser?.avatar}
@@ -204,7 +204,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
                     className="fixed inset-0 z-20"
                     onClick={() => setShowDataMenu(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-slate-900 rounded-2xl p-2 z-30 border border-slate-200 dark:border-slate-800 shadow-xl text-xs space-y-1 animate-fade-in">
+                  <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-[#0d1424] rounded-2xl p-2 z-30 border border-slate-200 dark:border-slate-800 shadow-xl text-xs space-y-1 animate-fade-in">
                     <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       Database Management
                     </div>

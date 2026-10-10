@@ -442,15 +442,15 @@ export const Gradebook: React.FC<GradebookProps> = ({
       {/* ========================================================================= */}
       {activePeriodTab === 'summary' ? (
         <div className="space-y-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+          <div className="bg-white dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl overflow-hidden shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-850">
-                    <th className="p-3 sticky left-0 bg-slate-50 dark:bg-slate-850 z-20 min-w-[80px]">
+                  <tr className="border-b border-slate-200/90 dark:border-slate-800/90 bg-slate-50/90 dark:bg-[#090e1a]">
+                    <th className="p-3 sticky left-0 bg-slate-50 dark:bg-[#090e1a] z-20 min-w-[80px]">
                       Student ID
                     </th>
-                    <th className="p-3 sticky left-[80px] bg-slate-50 dark:bg-slate-850 z-20 min-w-[160px] border-r border-slate-200 dark:border-slate-800">
+                    <th className="p-3 sticky left-[80px] bg-slate-50 dark:bg-[#090e1a] z-20 min-w-[160px] border-r border-slate-200 dark:border-slate-800">
                       Student Name
                     </th>
                     <th className="p-3 text-center min-w-[130px] border-r border-slate-200 dark:border-slate-800">
@@ -499,11 +499,11 @@ export const Gradebook: React.FC<GradebookProps> = ({
                           key={student.id}
                           className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors duration-100"
                         >
-                          <td className="p-3 sticky left-0 bg-white dark:bg-slate-900 z-10 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                          <td className="p-3 sticky left-0 bg-white dark:bg-[#0d1424] z-10 font-mono text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
                             {student.studentNumber || student.id.slice(0, 6)}
                           </td>
 
-                          <td className="p-3 sticky left-[80px] bg-white dark:bg-slate-900 z-10 border-r border-slate-200 dark:border-slate-800">
+                          <td className="p-3 sticky left-[80px] bg-white dark:bg-[#0d1424] z-10 border-r border-slate-200 dark:border-slate-800">
                             <div className="flex items-center gap-2">
                               <img
                                 src={student.avatar}
@@ -604,7 +604,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
         /* ========================================================================= */
         /* VIEW 2: PERIOD SPECIFIC SPREADSHEET (Prelim, Midterm, Finals)             */
         /* ========================================================================= */
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+        <div className="bg-white dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl overflow-hidden shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
           <div className="overflow-x-auto custom-scrollbar">
             {(() => {
               const currentPeriod = activePeriodTab as GradingPeriod;
@@ -718,10 +718,10 @@ export const Gradebook: React.FC<GradebookProps> = ({
                 <table className="w-full text-left text-xs border-collapse">
                   {/* Top Level Category Group Headers */}
                   <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-850">
+                    <tr className="border-b border-slate-200/90 dark:border-slate-800/90 bg-slate-50/90 dark:bg-[#090e1a]">
                       <th
                         colSpan={2}
-                        className="p-3 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 sticky left-0 bg-slate-50 dark:bg-slate-850 z-20 border-r border-slate-200 dark:border-slate-800"
+                        className="p-3 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 sticky left-0 bg-slate-50 dark:bg-[#090e1a] z-20 border-r border-slate-200 dark:border-slate-800"
                       >
                         Student ({filteredStudents.length})
                       </th>
@@ -757,11 +757,11 @@ export const Gradebook: React.FC<GradebookProps> = ({
                     </tr>
 
                     {/* Second Level Subcategories & Assessment Items Header */}
-                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-800/50 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                      <th className="p-2.5 sticky left-0 bg-white dark:bg-slate-900 z-20 min-w-[75px]">
+                    <tr className="border-b border-slate-200/90 dark:border-slate-800/90 bg-slate-100/50 dark:bg-[#0b101d] text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                      <th className="p-2.5 sticky left-0 bg-white dark:bg-[#0d1424] z-20 min-w-[75px]">
                         ID
                       </th>
-                      <th className="p-2.5 sticky left-[75px] bg-white dark:bg-slate-900 z-20 min-w-[150px] border-r border-slate-200 dark:border-slate-800">
+                      <th className="p-2.5 sticky left-[75px] bg-white dark:bg-[#0d1424] z-20 min-w-[150px] border-r border-slate-200 dark:border-slate-800">
                         Name
                       </th>
 
@@ -882,12 +882,12 @@ export const Gradebook: React.FC<GradebookProps> = ({
                             className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors duration-100"
                           >
                             {/* Student ID */}
-                            <td className="p-2.5 sticky left-0 bg-white dark:bg-slate-900 z-10 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                            <td className="p-2.5 sticky left-0 bg-white dark:bg-[#0d1424] z-10 font-mono text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
                               {student.studentNumber || student.id.slice(0, 6)}
                             </td>
 
                             {/* Student Avatar & Name */}
-                            <td className="p-2.5 sticky left-[75px] bg-white dark:bg-slate-900 z-10 border-r border-slate-200 dark:border-slate-800">
+                            <td className="p-2.5 sticky left-[75px] bg-white dark:bg-[#0d1424] z-10 border-r border-slate-200 dark:border-slate-800">
                               <div className="flex items-center gap-2 min-w-[140px]">
                                 <img
                                   src={student.avatar}
