@@ -1,0 +1,1036 @@
+import React, { useState } from 'react';
+import { useData } from '../../context/DataContext';
+import {
+  Assessment,
+  Subject,
+  MatrixCategory,
+  MatrixSubCategory,
+  GradingPeriod,
+} from '../../types';
+import { NeuButton } from '../common/NeuButton';
+import { NeuBadge } from '../common/NeuBadge';
+import { NeuSelect, NeuInput } from '../common/NeuInput';
+import { AssessmentModal } from './AssessmentModal';
+import { MatrixConfigModal } from './MatrixConfigModal';
+import { BulkStudentUploadModal } from './BulkStudentUploadModal';
+import {
+  calculateStudentSubjectPerformance,
+  calculatePeriodSummary,
+  calculateAttendanceStats,
+} from '../../utils/gradeCalculator';
+import { exportGradebookToCSV } from '../../utils/exportUtils';
+import {
+  Plus,
+  Sliders,
+  Download,
+  Printer,
+  Search,
+  Trash2,
+  Edit,
+  CalendarCheck,
+  AlertTriangle,
+  Upload,
+  Award,
+  ArrowUpDown,
+} from 'lucide-react';
+import { compareByLastName, formatLastFirst } from '../../utils/nameUtils';
+
+interface GradebookColumn {
+  key: string;
+  parentCategory: MatrixCategory;
+  subCategory?: MatrixSubCategory;
+  isAttendance?: boolean;
+  assessment?: Assessment;
+  emptyLabel?: string;
+  initialCategoryId?: string;
+}
+
+interface GradebookProps {
+  initialSectionId?: string;
+  initialSubjectId?: string;
+  onNavigateToAttendance: (sectionId: string, subjectId: string, period?: GradingPeriod) => void;
+  onShowToast: (title: string, message?: string, type?: 'success' | 'warning' | 'error' | 'info') => void;
+}
+
+type PeriodViewMode = GradingPeriod | 'summary';
+
+export const Gradebook: React.FC<GradebookProps> = ({
+  initialSectionId,
+  initialSubjectId,
+  onNavigateToAttendance,
+  onShowToast,
+}) => {
+  const {
+    sections,
+    subjects,
+    assessments,
+    scores,
+    attendance,
+    students,
+    setScore,
+    addAssessment,
+    updateAssessment,
+    deleteAssessment,
+    updateSubjectMatrix,
+  } = useData();
+
+  const [selectedSectionId, setSelectedSectionId] = useState<string>(
+    initialSectionId || sections[0]?.id || ''
+  );
+
+  const sectionSubjects = subjects.filter((s) => s.sectionId === selectedSectionId);
+
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(() => {
+    if (initialSubjectId && sectionSubjects.some((s) => s.id === initialSubjectId)) {
+      return initialSubjectId;
+    }
+    return sectionSubjects[0]?.id || '';
+  });
+
+  const [activePeriodTab, setActivePeriodTab] = useState<PeriodViewMode>('prelim');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState(false);
+  const [assessmentToEdit, setAssessmentToEdit] = useState<Assessment | null>(null);
+  const [initialAssessmentCategoryId, setInitialAssessmentCategoryId] = useState<string | undefined>(undefined);
+  const [initialAssessmentPeriod, setInitialAssessmentPeriod] = useState<GradingPeriod>('prelim');
+  const [isMatrixModalOpen, setIsMatrixModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+
+  // Active subject object
+  const activeSubject: Subject | undefined = sectionSubjects.find(
+    (s) => s.id === selectedSubjectId
+  ) || sectionSubjects[0];
+
+  // Sorting and display states
+  const [studentSortBy, setStudentSortBy] = useState<'last-name-asc' | 'last-name-desc' | 'first-name-asc' | 'student-number'>('last-name-asc');
+  const [displayLastFirst, setDisplayLastFirst] = useState(true);
+
+  // Students in section
+  const sectionStudents = students.filter((s) => s.sectionId === selectedSectionId);
+  const filteredStudents = sectionStudents.filter(
+    (stud) =>
+      stud.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (stud.studentNumber && stud.studentNumber.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    if (studentSortBy === 'last-name-asc') {
+      return compareByLastName(a.name, b.name, 'asc');
+    }
+    if (studentSortBy === 'last-name-desc') {
+      return compareByLastName(a.name, b.name, 'desc');
+    }
+    if (studentSortBy === 'first-name-asc') {
+      return a.name.localeCompare(b.name);
+    }
+    if (studentSortBy === 'student-number') {
+      return (a.studentNumber || '').localeCompare(b.studentNumber || '');
+    }
+    return 0;
+  });
+
+  // Assessments for active subject
+  const subjectAssessments = activeSubject
+    ? assessments.filter((a) => a.subjectId === activeSubject.id)
+    : [];
+
+  const handleScoreChange = (assessmentId: string, studentId: string, rawVal: string, maxScore: number) => {
+    const num = rawVal === '' ? 0 : Number(rawVal);
+    const validScore = Math.max(0, Math.min(maxScore, num));
+    setScore(assessmentId, studentId, validScore);
+  };
+
+  const handleAddAssessment = (catId?: string, period?: GradingPeriod) => {
+    setAssessmentToEdit(null);
+    setInitialAssessmentCategoryId(catId);
+    setInitialAssessmentPeriod(period || (activePeriodTab === 'summary' ? 'prelim' : activePeriodTab));
+    setIsAssessmentModalOpen(true);
+  };
+
+  const handleEditAssessment = (assessment: Assessment) => {
+    setAssessmentToEdit(assessment);
+    setInitialAssessmentCategoryId(assessment.categoryId);
+    setInitialAssessmentPeriod(assessment.period || 'prelim');
+    setIsAssessmentModalOpen(true);
+  };
+
+  const handleDeleteAssessment = (ass: Assessment) => {
+    if (window.confirm(`Delete assessment "${ass.title}" and all student scores?`)) {
+      deleteAssessment(ass.id);
+      onShowToast('Assessment Deleted', `"${ass.title}" has been removed.`, 'warning');
+    }
+  };
+
+  const handleSaveAssessment = (data: Omit<Assessment, 'id'>, idToUpdate?: string) => {
+    if (idToUpdate) {
+      updateAssessment(idToUpdate, data);
+      onShowToast('Assessment Updated', `"${data.title}" has been updated.`, 'success');
+    } else {
+      addAssessment(data);
+      onShowToast('Assessment Created', `"${data.title}" added to gradebook.`, 'success');
+    }
+  };
+
+  const handleExportCSV = () => {
+    if (!activeSubject) return;
+    exportGradebookToCSV(activeSubject, sectionStudents, assessments, scores, attendance, activePeriodTab);
+    onShowToast('CSV Downloaded', `${activeSubject.code} ${activePeriodTab.toUpperCase()} grade sheet exported.`, 'success');
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const sectionOptions = sections.map((s) => ({
+    value: s.id,
+    label: `${s.name} (${s.gradeLevelOrYear})`,
+  }));
+
+  const subjectOptions = sectionSubjects.map((s) => ({
+    value: s.id,
+    label: `${s.code} - ${s.name}`,
+  }));
+
+  if (!activeSubject) {
+    return (
+      <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+        <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white">No Courses in this Section</h2>
+        <p className="text-xs text-slate-500">Create a course for this class to start recording grades.</p>
+      </div>
+    );
+  }
+
+  // Count assessments per period
+  const prelimCount = subjectAssessments.filter((a) => (a.period || 'prelim') === 'prelim').length;
+  const midtermCount = subjectAssessments.filter((a) => a.period === 'midterm').length;
+  const finalsCount = subjectAssessments.filter((a) => a.period === 'finals').length;
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      {/* Header Controls */}
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Interactive Gradebook
+            </h1>
+            <NeuBadge variant="primary" size="sm">
+              {activeSubject.code}
+            </NeuBadge>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
+              3-Period Quarter System
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Manage <strong>Prelim (30%)</strong>, <strong>Midterm (30%)</strong>, and <strong>Finals (40%)</strong> period sheets with live matrix calculations.
+          </p>
+        </div>
+
+        {/* Section and Subject Switchers */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
+          <div className="w-44 sm:w-50">
+            <NeuSelect
+              label="Class / Section"
+              options={sectionOptions}
+              value={selectedSectionId}
+              onChange={(e) => {
+                setSelectedSectionId(e.target.value);
+                const subjs = subjects.filter((s) => s.sectionId === e.target.value);
+                if (subjs[0]) setSelectedSubjectId(subjs[0].id);
+              }}
+            />
+          </div>
+
+          <div className="w-56 sm:w-64">
+            <NeuSelect
+              label="Subject Course"
+              options={subjectOptions}
+              value={selectedSubjectId}
+              onChange={(e) => setSelectedSubjectId(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 3-Quarter Period Navigation Tabs */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {/* Prelim Tab */}
+          <button
+            onClick={() => setActivePeriodTab('prelim')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activePeriodTab === 'prelim'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
+            }`}
+          >
+            <span>1️⃣ Prelim Period</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                activePeriodTab === 'prelim'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+              }`}
+            >
+              30% Wt • {prelimCount} items
+            </span>
+          </button>
+
+          {/* Midterm Tab */}
+          <button
+            onClick={() => setActivePeriodTab('midterm')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activePeriodTab === 'midterm'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
+            }`}
+          >
+            <span>2️⃣ Midterm Period</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                activePeriodTab === 'midterm'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+              }`}
+            >
+              30% Wt • {midtermCount} items
+            </span>
+          </button>
+
+          {/* Finals Tab */}
+          <button
+            onClick={() => setActivePeriodTab('finals')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activePeriodTab === 'finals'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
+            }`}
+          >
+            <span>3️⃣ Finals Period</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                activePeriodTab === 'finals'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+              }`}
+            >
+              40% Wt • {finalsCount} items
+            </span>
+          </button>
+
+          {/* Semestral Summary Master Tab */}
+          <button
+            onClick={() => setActivePeriodTab('summary')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activePeriodTab === 'summary'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
+            }`}
+          >
+            <Award className="w-3.5 h-3.5" />
+            <span>🌟 Semestral Master Summary (100%)</span>
+          </button>
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex items-center gap-2">
+          <NeuButton
+            variant="secondary"
+            size="sm"
+            onClick={() => setIsMatrixModalOpen(true)}
+            leftIcon={<Sliders className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />}
+          >
+            Grading Matrix
+          </NeuButton>
+
+          <NeuButton
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              onNavigateToAttendance(
+                activeSubject.sectionId,
+                activeSubject.id,
+                activePeriodTab === 'summary' ? 'prelim' : activePeriodTab
+              )
+            }
+            leftIcon={<CalendarCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+          >
+            Roll Call
+          </NeuButton>
+
+          <NeuButton
+            variant="primary"
+            size="sm"
+            onClick={() => handleAddAssessment(undefined, activePeriodTab === 'summary' ? 'prelim' : activePeriodTab)}
+            leftIcon={<Plus className="w-3.5 h-3.5 text-white" />}
+          >
+            Add Assessment
+          </NeuButton>
+        </div>
+      </div>
+
+      {/* Gradebook Table Toolbar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 px-0.5">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
+          <div className="w-full sm:w-60">
+            <NeuInput
+              placeholder="Search student name or ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+            />
+          </div>
+
+          <div className="w-full sm:w-52">
+            <NeuSelect
+              options={[
+                { value: 'last-name-asc', label: 'Sort: Last Name (A-Z)' },
+                { value: 'last-name-desc', label: 'Sort: Last Name (Z-A)' },
+                { value: 'first-name-asc', label: 'Sort: First Name (A-Z)' },
+                { value: 'student-number', label: 'Sort: Student ID' },
+              ]}
+              value={studentSortBy}
+              onChange={(e) => setStudentSortBy(e.target.value as any)}
+            />
+          </div>
+
+          <NeuButton
+            variant="secondary"
+            size="sm"
+            onClick={() => setDisplayLastFirst(!displayLastFirst)}
+            title={displayLastFirst ? 'Display: Last Name, First Name' : 'Display: First Name Last Name'}
+            leftIcon={<ArrowUpDown className="w-3.5 h-3.5 text-[#F97316]" />}
+            className="text-xs whitespace-nowrap"
+          >
+            {displayLastFirst ? 'Last, First' : 'First Last'}
+          </NeuButton>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+          <NeuButton
+            variant="secondary"
+            size="sm"
+            onClick={() => setIsBulkModalOpen(true)}
+            leftIcon={<Upload className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />}
+          >
+            Import Masterlist
+          </NeuButton>
+
+          <NeuButton
+            variant="secondary"
+            size="sm"
+            onClick={handleExportCSV}
+            leftIcon={<Download className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />}
+          >
+            Export {activePeriodTab.toUpperCase()} CSV
+          </NeuButton>
+
+          <NeuButton
+            variant="secondary"
+            size="sm"
+            onClick={handlePrint}
+            leftIcon={<Printer className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />}
+          >
+            Print Sheet
+          </NeuButton>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* VIEW 1: SEMESTRAL MASTER SUMMARY TABLE                                   */}
+      {/* ========================================================================= */}
+      {activePeriodTab === 'summary' ? (
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-850">
+                    <th className="p-3 sticky left-0 bg-slate-50 dark:bg-slate-850 z-20 min-w-[80px]">
+                      Student ID
+                    </th>
+                    <th className="p-3 sticky left-[80px] bg-slate-50 dark:bg-slate-850 z-20 min-w-[160px] border-r border-slate-200 dark:border-slate-800">
+                      Student Name
+                    </th>
+                    <th className="p-3 text-center min-w-[130px] border-r border-slate-200 dark:border-slate-800">
+                      <div className="font-bold text-slate-800 dark:text-slate-200">1️⃣ Prelim Period</div>
+                      <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">Weight: 30%</div>
+                    </th>
+                    <th className="p-3 text-center min-w-[130px] border-r border-slate-200 dark:border-slate-800">
+                      <div className="font-bold text-slate-800 dark:text-slate-200">2️⃣ Midterm Period</div>
+                      <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">Weight: 30%</div>
+                    </th>
+                    <th className="p-3 text-center min-w-[130px] border-r border-slate-200 dark:border-slate-800">
+                      <div className="font-bold text-slate-800 dark:text-slate-200">3️⃣ Finals Period</div>
+                      <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">Weight: 40%</div>
+                    </th>
+                    <th className="p-3 text-center font-bold bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 min-w-[110px] border-r border-slate-200 dark:border-slate-800">
+                      Semestral Grade
+                    </th>
+                    <th className="p-3 text-center font-bold min-w-[70px] border-r border-slate-200 dark:border-slate-800">
+                      GPA
+                    </th>
+                    <th className="p-3 text-center font-bold min-w-[90px]">
+                      Final Status
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                  {sortedStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-slate-400">
+                        No students found matching your criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    sortedStudents.map((student) => {
+                      const perf = calculateStudentSubjectPerformance(
+                        activeSubject,
+                        student,
+                        assessments,
+                        scores,
+                        attendance
+                      );
+
+                      return (
+                        <tr
+                          key={student.id}
+                          className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors duration-100"
+                        >
+                          <td className="p-3 sticky left-0 bg-white dark:bg-slate-900 z-10 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                            {student.studentNumber || student.id.slice(0, 6)}
+                          </td>
+
+                          <td className="p-3 sticky left-[80px] bg-white dark:bg-slate-900 z-10 border-r border-slate-200 dark:border-slate-800">
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={student.avatar}
+                                alt={student.name}
+                                className="w-6 h-6 rounded-md object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
+                              />
+                              <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                {displayLastFirst ? formatLastFirst(student.name) : student.name}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Prelim Cell */}
+                          <td className="p-3 text-center border-r border-slate-200 dark:border-slate-800">
+                            <button
+                              onClick={() => setActivePeriodTab('prelim')}
+                              className="font-bold text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                              title="Click to view Prelim details"
+                            >
+                              {perf.periods.prelim.grade}%
+                            </button>
+                            <div className="text-[10px] text-slate-400">
+                              {perf.periods.prelim.assessmentCount} items recorded
+                            </div>
+                          </td>
+
+                          {/* Midterm Cell */}
+                          <td className="p-3 text-center border-r border-slate-200 dark:border-slate-800">
+                            <button
+                              onClick={() => setActivePeriodTab('midterm')}
+                              className="font-bold text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                              title="Click to view Midterm details"
+                            >
+                              {perf.periods.midterm.grade}%
+                            </button>
+                            <div className="text-[10px] text-slate-400">
+                              {perf.periods.midterm.assessmentCount} items recorded
+                            </div>
+                          </td>
+
+                          {/* Finals Cell */}
+                          <td className="p-3 text-center border-r border-slate-200 dark:border-slate-800">
+                            <button
+                              onClick={() => setActivePeriodTab('finals')}
+                              className="font-bold text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                              title="Click to view Finals details"
+                            >
+                              {perf.periods.finals.grade}%
+                            </button>
+                            <div className="text-[10px] text-slate-400">
+                              {perf.periods.finals.assessmentCount} items recorded
+                            </div>
+                          </td>
+
+                          {/* Semestral Final Grade */}
+                          <td className="p-3 text-center font-bold text-base bg-indigo-50/30 dark:bg-indigo-950/20 border-r border-slate-200 dark:border-slate-800">
+                            <span
+                              className={
+                                perf.isPassing
+                                  ? 'text-slate-900 dark:text-slate-100 font-extrabold'
+                                  : 'text-rose-600 dark:text-rose-400 font-extrabold'
+                              }
+                            >
+                              {perf.finalGrade}%
+                            </span>
+                          </td>
+
+                          {/* GPA */}
+                          <td className="p-3 text-center font-mono font-bold text-xs text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-800">
+                            {perf.gpa.toFixed(2)}
+                          </td>
+
+                          {/* Remarks */}
+                          <td className="p-3 text-center">
+                            <NeuBadge
+                              variant={
+                                perf.remarks === 'Honors'
+                                  ? 'primary'
+                                  : perf.isPassing
+                                  ? 'success'
+                                  : 'danger'
+                              }
+                              size="sm"
+                            >
+                              {perf.remarks}
+                            </NeuBadge>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* ========================================================================= */
+        /* VIEW 2: PERIOD SPECIFIC SPREADSHEET (Prelim, Midterm, Finals)             */
+        /* ========================================================================= */
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+          <div className="overflow-x-auto custom-scrollbar">
+            {(() => {
+              const currentPeriod = activePeriodTab as GradingPeriod;
+              const periodAssessments = subjectAssessments.filter(
+                (a) => (a.period || 'prelim') === currentPeriod
+              );
+
+              // Generate columns for this period
+              const columns: GradebookColumn[] = [];
+
+              activeSubject.matrix.forEach((cat) => {
+                if (cat.subCategories && cat.subCategories.length > 0) {
+                  cat.subCategories.forEach((subCat) => {
+                    const isAtt =
+                      subCat.name.toLowerCase().includes('attend') ||
+                      subCat.id.toLowerCase().includes('attend');
+
+                    if (isAtt) {
+                      columns.push({
+                        key: `att-${cat.id}-${subCat.id}`,
+                        parentCategory: cat,
+                        subCategory: subCat,
+                        isAttendance: true,
+                      });
+                    } else {
+                      // Find assessments in this period matching subcategory
+                      const subAssessments = periodAssessments.filter(
+                        (a) =>
+                          a.categoryId === subCat.id ||
+                          (a.parentCategoryId === cat.id && a.categoryId === subCat.id) ||
+                          (!a.parentCategoryId &&
+                            a.categoryId === cat.id &&
+                            a.title.toLowerCase().includes(subCat.name.toLowerCase().slice(0, 4)))
+                      );
+
+                      if (subAssessments.length === 0) {
+                        columns.push({
+                          key: `empty-${cat.id}-${subCat.id}`,
+                          parentCategory: cat,
+                          subCategory: subCat,
+                          emptyLabel: `+ Add ${subCat.name}`,
+                          initialCategoryId: subCat.id,
+                        });
+                      } else {
+                        subAssessments.forEach((ass) => {
+                          columns.push({
+                            key: `ass-${ass.id}`,
+                            parentCategory: cat,
+                            subCategory: subCat,
+                            assessment: ass,
+                          });
+                        });
+                      }
+                    }
+                  });
+
+                  // Add extra assessments in this category not caught by subcategory match
+                  const matchedIds = new Set(
+                    columns.filter((c) => c.assessment).map((c) => c.assessment!.id)
+                  );
+                  const extraAssessments = periodAssessments.filter(
+                    (a) =>
+                      (a.categoryId === cat.id || a.parentCategoryId === cat.id) &&
+                      !matchedIds.has(a.id)
+                  );
+                  extraAssessments.forEach((ass) => {
+                    columns.push({
+                      key: `ass-${ass.id}`,
+                      parentCategory: cat,
+                      assessment: ass,
+                    });
+                  });
+                } else {
+                  // Flat category
+                  const isAtt =
+                    cat.name.toLowerCase().includes('attend') ||
+                    cat.id.toLowerCase().includes('attend');
+
+                  if (isAtt) {
+                    columns.push({
+                      key: `att-${cat.id}`,
+                      parentCategory: cat,
+                      isAttendance: true,
+                    });
+                  } else {
+                    const catAssessments = periodAssessments.filter(
+                      (a) => a.categoryId === cat.id || a.parentCategoryId === cat.id
+                    );
+
+                    if (catAssessments.length === 0) {
+                      columns.push({
+                        key: `empty-${cat.id}`,
+                        parentCategory: cat,
+                        emptyLabel: `+ Add ${cat.name}`,
+                        initialCategoryId: cat.id,
+                      });
+                    } else {
+                      catAssessments.forEach((ass) => {
+                        columns.push({
+                          key: `ass-${ass.id}`,
+                          parentCategory: cat,
+                          assessment: ass,
+                        });
+                      });
+                    }
+                  }
+                }
+              });
+
+              return (
+                <table className="w-full text-left text-xs border-collapse">
+                  {/* Top Level Category Group Headers */}
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-850">
+                      <th
+                        colSpan={2}
+                        className="p-3 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 sticky left-0 bg-slate-50 dark:bg-slate-850 z-20 border-r border-slate-200 dark:border-slate-800"
+                      >
+                        Student ({filteredStudents.length})
+                      </th>
+
+                      {/* Dynamic Category Group Spans */}
+                      {activeSubject.matrix.map((cat) => {
+                        const catCols = columns.filter((col) => col.parentCategory.id === cat.id);
+                        const colSpan = Math.max(1, catCols.length);
+
+                        return (
+                          <th
+                            key={cat.id}
+                            colSpan={colSpan}
+                            className="p-3 text-center font-bold text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800"
+                          >
+                            <div className="flex items-center justify-center gap-1.5">
+                              <span>{cat.name}</span>
+                              <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded">
+                                {cat.weight}%
+                              </span>
+                            </div>
+                          </th>
+                        );
+                      })}
+
+                      {/* Period Grade Column Header */}
+                      <th
+                        colSpan={2}
+                        className="p-3 text-center font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/30 min-w-[140px]"
+                      >
+                        {currentPeriod.toUpperCase()} Standing
+                      </th>
+                    </tr>
+
+                    {/* Second Level Subcategories & Assessment Items Header */}
+                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-800/50 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                      <th className="p-2.5 sticky left-0 bg-white dark:bg-slate-900 z-20 min-w-[75px]">
+                        ID
+                      </th>
+                      <th className="p-2.5 sticky left-[75px] bg-white dark:bg-slate-900 z-20 min-w-[150px] border-r border-slate-200 dark:border-slate-800">
+                        Name
+                      </th>
+
+                      {/* Dynamic Columns */}
+                      {columns.map((col) => {
+                        if (col.isAttendance) {
+                          return (
+                            <th
+                              key={col.key}
+                              className="p-2.5 text-center border-r border-slate-200 dark:border-slate-800 min-w-[95px]"
+                            >
+                              <div className="font-bold text-slate-700 dark:text-slate-300">
+                                {col.subCategory?.name || 'Attendance'}
+                              </div>
+                              <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                                {col.subCategory ? `${col.subCategory.weight}% of CS` : 'Roll %'}
+                              </div>
+                            </th>
+                          );
+                        }
+
+                        if (col.emptyLabel) {
+                          return (
+                            <th
+                              key={col.key}
+                              className="p-2.5 text-center text-slate-400 italic font-normal border-r border-slate-200 dark:border-slate-800 min-w-[125px]"
+                            >
+                              <div className="text-[10px] text-slate-500 font-bold mb-0.5 uppercase tracking-wider">
+                                {col.subCategory?.name || col.parentCategory.name} (
+                                {col.subCategory?.weight || col.parentCategory.weight}%)
+                              </div>
+                              <button
+                                onClick={() => handleAddAssessment(col.initialCategoryId, currentPeriod)}
+                                className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center justify-center gap-1 mx-auto bg-indigo-50/70 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md font-semibold"
+                              >
+                                <Plus className="w-3 h-3" /> Add Item
+                              </button>
+                            </th>
+                          );
+                        }
+
+                        const ass = col.assessment!;
+                        return (
+                          <th
+                            key={col.key}
+                            className="p-2 text-center border-r border-slate-200 dark:border-slate-800 min-w-[115px] group relative"
+                          >
+                            {col.subCategory && (
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                                {col.subCategory.name}
+                              </span>
+                            )}
+                            <div
+                              className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[105px] mx-auto"
+                              title={ass.title}
+                            >
+                              {ass.title}
+                            </div>
+                            <div className="text-[10px] text-slate-400 flex items-center justify-center gap-1 mt-0.5">
+                              <span>Max: {ass.maxScore}</span>
+                              <button
+                                onClick={() => handleEditAssessment(ass)}
+                                className="text-slate-400 hover:text-indigo-600 p-0.5"
+                                title="Edit"
+                              >
+                                <Edit className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAssessment(ass)}
+                                className="text-slate-400 hover:text-rose-600 p-0.5"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </th>
+                        );
+                      })}
+
+                      <th className="p-2 text-center min-w-[75px] font-bold">
+                        {currentPeriod.toUpperCase()} %
+                      </th>
+                      <th className="p-2 text-center min-w-[75px] font-bold">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+
+                  {/* Students Data Rows */}
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {sortedStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={columns.length + 4} className="p-8 text-center text-slate-400">
+                          No students found matching your criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      sortedStudents.map((student) => {
+                        const periodSumm = calculatePeriodSummary(
+                          activeSubject,
+                          student,
+                          currentPeriod,
+                          assessments,
+                          scores,
+                          attendance
+                        );
+
+                        const attStats = calculateAttendanceStats(
+                          attendance,
+                          student.id,
+                          activeSubject.id,
+                          currentPeriod
+                        );
+
+                        return (
+                          <tr
+                            key={student.id}
+                            className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors duration-100"
+                          >
+                            {/* Student ID */}
+                            <td className="p-2.5 sticky left-0 bg-white dark:bg-slate-900 z-10 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                              {student.studentNumber || student.id.slice(0, 6)}
+                            </td>
+
+                            {/* Student Avatar & Name */}
+                            <td className="p-2.5 sticky left-[75px] bg-white dark:bg-slate-900 z-10 border-r border-slate-200 dark:border-slate-800">
+                              <div className="flex items-center gap-2 min-w-[140px]">
+                                <img
+                                  src={student.avatar}
+                                  alt={student.name}
+                                  className="w-6 h-6 rounded-md object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <span className="font-semibold text-slate-900 dark:text-slate-100 truncate block">
+                                    {displayLastFirst ? formatLastFirst(student.name) : student.name}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Dynamic Cells */}
+                            {columns.map((col) => {
+                              if (col.isAttendance) {
+                                return (
+                                  <td
+                                    key={`${col.key}-${student.id}`}
+                                    className="p-2 text-center border-r border-slate-200 dark:border-slate-800"
+                                  >
+                                    <span
+                                      className={`font-mono font-bold px-1.5 py-0.5 rounded text-xs ${
+                                        attStats.rate >= 90
+                                          ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60'
+                                          : attStats.rate >= 75
+                                          ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60'
+                                          : 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60'
+                                      }`}
+                                    >
+                                      {attStats.rate}%
+                                    </span>
+                                  </td>
+                                );
+                              }
+
+                              if (col.emptyLabel) {
+                                return (
+                                  <td
+                                    key={`${col.key}-${student.id}`}
+                                    className="p-2 text-center text-slate-400 border-r border-slate-200 dark:border-slate-800"
+                                  >
+                                    —
+                                  </td>
+                                );
+                              }
+
+                              const ass = col.assessment!;
+                              const scoreRec = scores.find(
+                                (s) => s.assessmentId === ass.id && s.studentId === student.id
+                              );
+                              const currentScore = scoreRec !== undefined ? scoreRec.score : '';
+
+                              return (
+                                <td
+                                  key={`${col.key}-${student.id}`}
+                                  className="p-1.5 text-center border-r border-slate-200 dark:border-slate-800"
+                                >
+                                  <div className="inline-flex items-center justify-center">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={ass.maxScore}
+                                      value={currentScore}
+                                      onChange={(e) =>
+                                        handleScoreChange(
+                                          ass.id,
+                                          student.id,
+                                          e.target.value,
+                                          ass.maxScore
+                                        )
+                                      }
+                                      className="w-11 py-1 px-1 text-center font-bold text-slate-900 dark:text-slate-100 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 focus:bg-white dark:focus:bg-slate-900 transition-all"
+                                      placeholder="0"
+                                    />
+                                  </div>
+                                </td>
+                              );
+                            })}
+
+                            {/* Period Grade % */}
+                            <td className="p-2 text-center font-bold text-sm border-r border-slate-200 dark:border-slate-800">
+                              <span
+                                className={
+                                  periodSumm.isPassing
+                                    ? 'text-slate-900 dark:text-slate-100'
+                                    : 'text-rose-600 dark:text-rose-400'
+                                }
+                              >
+                                {periodSumm.grade}%
+                              </span>
+                            </td>
+
+                            {/* Status */}
+                            <td className="p-2 text-center">
+                              <NeuBadge
+                                variant={periodSumm.isPassing ? 'success' : 'danger'}
+                                size="sm"
+                              >
+                                {periodSumm.isPassing ? 'Passing' : 'Failing'}
+                              </NeuBadge>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
+      <BulkStudentUploadModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        sections={sections}
+        selectedSectionId={selectedSectionId}
+        onShowToast={onShowToast}
+      />
+
+      <AssessmentModal
+        isOpen={isAssessmentModalOpen}
+        onClose={() => setIsAssessmentModalOpen(false)}
+        subject={activeSubject}
+        assessmentToEdit={assessmentToEdit}
+        initialCategoryId={initialAssessmentCategoryId}
+        initialPeriod={initialAssessmentPeriod}
+        onSave={handleSaveAssessment}
+      />
+
+      <MatrixConfigModal
+        isOpen={isMatrixModalOpen}
+        onClose={() => setIsMatrixModalOpen(false)}
+        subject={activeSubject}
+        onSave={(subjId, matrix, passGrade) => {
+          updateSubjectMatrix(subjId, matrix, passGrade);
+          onShowToast('Matrix Saved', 'Grading weights updated for this course.', 'success');
+        }}
+      />
+    </div>
+  );
+};
