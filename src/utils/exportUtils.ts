@@ -126,7 +126,7 @@ export function exportSystemDataToJSON(data: Record<string, unknown>) {
   downloadAnchor.setAttribute('href', jsonString);
   downloadAnchor.setAttribute(
     'download',
-    `AuraSMS_Backup_${new Date().toISOString().slice(0, 10)}.json`
+    `Gradely_Backup_${new Date().toISOString().slice(0, 10)}.json`
   );
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();

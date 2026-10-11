@@ -175,7 +175,7 @@ export function parseStudentMasterlist(csvText: string, targetSectionId: string)
 
     const { displayName, emailHandle } = formatStudentName(rawName || `Student ${rawId}`);
     const cleanIdSuffix = rawId.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const email = `${emailHandle}${cleanIdSuffix ? `.${cleanIdSuffix}` : `.${r}`}@student.aurasms.edu`;
+    const email = `${emailHandle}${cleanIdSuffix ? `.${cleanIdSuffix}` : `.${r}`}@student.gradely.edu`;
 
     // Map raw record
     const rawRecord: Record<string, string> = {};

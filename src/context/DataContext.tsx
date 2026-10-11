@@ -115,49 +115,46 @@ interface DataContextType {
   resetToDemoData: (syncToCloud?: boolean) => Promise<void>;
 }
 
-const STORAGE_KEY = 'aurasms_data_store_v3';
+const STORAGE_KEY = 'gradely_data_store_v3';
+
+const getInitialData = <T,>(suffix: string, fallbackDefault: T): T => {
+  const saved = localStorage.getItem(`${STORAGE_KEY}_${suffix}`) || localStorage.getItem(`aurasms_data_store_v3_${suffix}`);
+  return saved ? JSON.parse(saved) : fallbackDefault;
+};
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [matrixTemplates, setMatrixTemplates] = useState<GradingMatrixTemplate[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_templates`);
-    return saved ? JSON.parse(saved) : INITIAL_GLOBAL_TEMPLATES;
+    return getInitialData('templates', INITIAL_GLOBAL_TEMPLATES);
   });
 
   const [sections, setSections] = useState<Section[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_sections`);
-    return saved ? JSON.parse(saved) : INITIAL_SECTIONS;
+    return getInitialData('sections', INITIAL_SECTIONS);
   });
 
   const [subjects, setSubjects] = useState<Subject[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_subjects`);
-    return saved ? JSON.parse(saved) : INITIAL_SUBJECTS;
+    return getInitialData('subjects', INITIAL_SUBJECTS);
   });
 
   const [assessments, setAssessments] = useState<Assessment[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_assessments`);
-    return saved ? JSON.parse(saved) : INITIAL_ASSESSMENTS;
+    return getInitialData('assessments', INITIAL_ASSESSMENTS);
   });
 
   const [scores, setScores] = useState<ScoreRecord[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_scores`);
-    return saved ? JSON.parse(saved) : INITIAL_SCORES;
+    return getInitialData('scores', INITIAL_SCORES);
   });
 
   const [attendance, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_attendance`);
-    return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE;
+    return getInitialData('attendance', INITIAL_ATTENDANCE);
   });
 
   const [holidays, setHolidays] = useState<Holiday[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_holidays`);
-    return saved ? JSON.parse(saved) : INITIAL_HOLIDAYS;
+    return getInitialData('holidays', INITIAL_HOLIDAYS);
   });
 
   const [allUsers, setAllUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_users`);
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
+    return getInitialData('users', INITIAL_USERS);
   });
 
   // Sync to localStorage

@@ -26,7 +26,7 @@ export interface QueuedMutation {
   timestamp: number;
 }
 
-const QUEUE_STORAGE_KEY = 'aurasms_offline_sync_queue';
+const QUEUE_STORAGE_KEY = 'gradely_offline_sync_queue';
 
 class SyncEngine {
   private queue: QueuedMutation[] = [];

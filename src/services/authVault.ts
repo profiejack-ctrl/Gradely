@@ -1,7 +1,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { User } from '../types';
 
-export const CREDENTIALS_STORAGE_KEY = 'aurasms_auth_credentials_v2';
+export const CREDENTIALS_STORAGE_KEY = 'gradely_auth_credentials_v2';
 export const AUTH_VAULT_RECORD_ID = 'sys-auth-vault';
 
 export interface StoredCredential {
@@ -26,7 +26,7 @@ class AuthVaultService {
   private loadFromLocalStorage(): CredentialsMap {
     if (typeof localStorage === 'undefined') return {};
     try {
-      const raw = localStorage.getItem(CREDENTIALS_STORAGE_KEY);
+      const raw = localStorage.getItem(CREDENTIALS_STORAGE_KEY) || localStorage.getItem('aurasms_auth_credentials_v2');
       if (raw) {
         this.inMemoryMap = JSON.parse(raw);
         return this.inMemoryMap;

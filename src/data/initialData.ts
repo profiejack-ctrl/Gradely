@@ -90,7 +90,7 @@ export const INITIAL_USERS: User[] = [
   {
     id: 'dean-rommel-constantino',
     name: 'Rommel Constantino',
-    email: 'rommel.constantino@aurasms.edu',
+    email: 'rommel.constantino@gradely.edu',
     role: 'dean',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     title: 'College Dean & Department Head',

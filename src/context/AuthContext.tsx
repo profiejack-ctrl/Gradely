@@ -42,8 +42,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const USERS_STORAGE_KEY = 'aurasms_data_store_v3_users';
-export const CURRENT_USER_KEY = 'aurasms_current_user_v2';
+export const USERS_STORAGE_KEY = 'gradely_data_store_v3_users';
+export const CURRENT_USER_KEY = 'gradely_current_user_v2';
 
 export const getStoredCredential = (identifier?: string): StoredCredential | null => {
   return authVault.getCredential(identifier);
@@ -56,7 +56,7 @@ export const saveStoredCredential = async (user: User, password?: string, mustCh
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>(() => {
     try {
-      const saved = localStorage.getItem(USERS_STORAGE_KEY);
+      const saved = localStorage.getItem(USERS_STORAGE_KEY) || localStorage.getItem('aurasms_data_store_v3_users');
       return saved ? JSON.parse(saved) : INITIAL_USERS;
     } catch {
       return INITIAL_USERS;
@@ -65,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
-      const saved = localStorage.getItem(CURRENT_USER_KEY);
+      const saved = localStorage.getItem(CURRENT_USER_KEY) || localStorage.getItem('aurasms_current_user_v2');
       if (saved) {
         return JSON.parse(saved);
       }
@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const saved = localStorage.getItem('aurasms_theme');
+    const saved = localStorage.getItem('gradely_theme') || localStorage.getItem('aurasms_theme');
     if (saved === 'dark' || saved === 'light') return saved;
     return 'light';
   });
@@ -200,7 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Theme synchronization
   useEffect(() => {
-    localStorage.setItem('aurasms_theme', theme);
+    localStorage.setItem('gradely_theme', theme);
     const root = document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');

@@ -10,7 +10,7 @@
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-const TOKEN_KEY = 'aurasms_api_token_v1';
+const TOKEN_KEY = 'gradely_api_token_v1';
 
 // --------------------------------------------------------------------------
 // Token management
@@ -141,7 +141,7 @@ export const teachersApi = {
 // Offline mutation queue
 // --------------------------------------------------------------------------
 
-const OFFLINE_QUEUE_KEY = 'aurasms_offline_api_queue_v1';
+const OFFLINE_QUEUE_KEY = 'gradely_offline_api_queue_v1';
 
 export interface OfflineMutation {
   id: string;

@@ -10,7 +10,6 @@ import {
   Moon,
   Cloud,
   GraduationCap,
-  Sparkles,
 } from 'lucide-react';
 import { NeuButton } from '../common/NeuButton';
 
@@ -48,7 +47,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
     if (res.success) {
       onShowToast('Welcome to Gradely', 'Signed in successfully.', 'success');
     } else {
-      setErrorMessage(res.error || 'Failed to sign in. Please verify your credentials.');
+      const err = res.error || 'Invalid credentials. Please verify your Student ID/Email and password.';
+      setErrorMessage(err);
+      onShowToast('Sign In Failed', err, 'error');
     }
   };
 
@@ -129,7 +130,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
                     required
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="e.g. 22120613 or alex.mercer@aurasms.edu"
+                    placeholder="e.g. 22120613 or user@gradely.edu"
                     className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
                   />
                 </div>
@@ -161,25 +162,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
-                </div>
-              </div>
-
-              {/* Institutional Credentials Guidance */}
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
-                <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Institutional Dean Access:</span>
-                </div>
-                <div className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-750 text-[11px] space-y-0.5">
-                  <div className="font-semibold text-indigo-600 dark:text-indigo-400">
-                    Dean Rommel Constantino
-                  </div>
-                  <div className="text-slate-600 dark:text-slate-300">
-                    Email / Name: <code className="font-mono font-bold text-slate-900 dark:text-white">rommel.constantino@aurasms.edu</code> or <code className="font-mono font-bold text-slate-900 dark:text-white">Rommel Constantino</code>
-                  </div>
-                  <div className="text-slate-600 dark:text-slate-300">
-                    Default Password: <code className="font-mono font-bold text-slate-900 dark:text-white">admin</code> or <code className="font-mono font-bold text-slate-900 dark:text-white">teacher123</code>
-                  </div>
                 </div>
               </div>
 

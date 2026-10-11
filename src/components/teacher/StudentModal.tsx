@@ -100,7 +100,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
           <NeuInput
             label="Email Address"
             type="email"
-            placeholder="e.g. liam.davis@student.aurasms.edu"
+            placeholder="e.g. liam.davis@student.gradely.edu"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
