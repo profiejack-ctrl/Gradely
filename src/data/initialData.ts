@@ -22,69 +22,7 @@ export const INITIAL_HOLIDAYS: Holiday[] = [
   { id: 'hol-10', date: '2026-12-30', title: 'Rizal Day', type: 'national' },
 ];
 
-export const INITIAL_GLOBAL_TEMPLATES: GradingMatrixTemplate[] = [
-  {
-    id: 'tmpl-lab-standard',
-    name: 'Laboratory Standard (Class Standing 35%, Exams 25%, Projects 40%)',
-    description: 'Specialized for Laboratory courses. Class Standing (35%) includes Attendance (10%), Performance Tasks (50%), and Quizzes (40%).',
-    isDefault: true,
-    passingGrade: 75,
-    matrix: [
-      {
-        id: 'cat-cs',
-        name: 'Class Standing',
-        weight: 35,
-        color: 'emerald',
-        description: 'Composite class standing components',
-        subCategories: [
-          { id: 'sub-att', name: 'Attendance', weight: 10, description: 'Class attendance and recitation' },
-          { id: 'sub-pt', name: 'Performance Task', weight: 50, description: 'Hands-on lab experiments and outputs' },
-          { id: 'sub-quiz', name: 'Quizzes', weight: 40, description: 'Weekly theory and concept checks' },
-        ],
-      },
-      {
-        id: 'cat-exam',
-        name: 'Exams',
-        weight: 25,
-        color: 'rose',
-        description: 'Major periodic examinations (Prelim, Midterm, Finals)',
-      },
-      {
-        id: 'cat-proj',
-        name: 'Projects',
-        weight: 40,
-        color: 'purple',
-        description: 'Periodic projects, machine problems, and capstone milestones',
-      },
-    ],
-  },
-  {
-    id: 'tmpl-lecture-standard',
-    name: 'Lecture Standard (Att 10%, Quizzes 20%, Activities 20%, Projects 25%, Exams 25%)',
-    description: 'Balanced college lecture course matrix.',
-    isDefault: false,
-    passingGrade: 75,
-    matrix: [
-      { id: 'cat-att-std', name: 'Attendance', weight: 10, color: 'blue' },
-      { id: 'cat-quiz-std', name: 'Quizzes', weight: 20, color: 'amber' },
-      { id: 'cat-act-std', name: 'Activities', weight: 20, color: 'emerald' },
-      { id: 'cat-proj-std', name: 'Projects', weight: 25, color: 'purple' },
-      { id: 'cat-exam-std', name: 'Exams', weight: 25, color: 'rose' },
-    ],
-  },
-  {
-    id: 'tmpl-deped-model',
-    name: 'DepEd / K-12 Model (Written Work 30%, Performance Tasks 50%, Exam 20%)',
-    description: 'Senior High School standard distribution.',
-    isDefault: false,
-    passingGrade: 75,
-    matrix: [
-      { id: 'cat-ww', name: 'Written Work (Quizzes/Tests)', weight: 30, color: 'amber' },
-      { id: 'cat-pt', name: 'Performance Tasks & Projects', weight: 50, color: 'emerald' },
-      { id: 'cat-qe', name: 'Quarterly Examination', weight: 20, color: 'rose' },
-    ],
-  },
-];
+export const INITIAL_GLOBAL_TEMPLATES: GradingMatrixTemplate[] = [];
 
 export const INITIAL_USERS: User[] = [
   {

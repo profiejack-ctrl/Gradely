@@ -117,6 +117,20 @@ interface DataContextType {
 
 const STORAGE_KEY = 'gradely_data_store_v3';
 
+// Helper to filter out legacy templates that the user has decommissioned
+export const isDeprecatedTemplate = (name: string, id: string): boolean => {
+  const n = (name || '').toLowerCase();
+  const i = (id || '').toLowerCase();
+  return (
+    n.includes('lecture standard') ||
+    n.includes('deped') ||
+    n.includes('k-12') ||
+    n.includes('k12') ||
+    i.includes('lecture-standard') ||
+    i.includes('deped')
+  );
+};
+
 const getInitialData = <T,>(suffix: string, fallbackDefault: T): T => {
   const saved = localStorage.getItem(`${STORAGE_KEY}_${suffix}`) || localStorage.getItem(`aurasms_data_store_v3_${suffix}`);
   return saved ? JSON.parse(saved) : fallbackDefault;
@@ -126,7 +140,8 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [matrixTemplates, setMatrixTemplates] = useState<GradingMatrixTemplate[]>(() => {
-    return getInitialData('templates', INITIAL_GLOBAL_TEMPLATES);
+    const rawTemplates: GradingMatrixTemplate[] = getInitialData('templates', INITIAL_GLOBAL_TEMPLATES);
+    return rawTemplates.filter((t) => !isDeprecatedTemplate(t.name, t.id));
   });
 
   const [sections, setSections] = useState<Section[]>(() => {
@@ -202,7 +217,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSections(remote.sections);
     }
     if (remote.matrixTemplates) {
-      setMatrixTemplates(remote.matrixTemplates);
+      setMatrixTemplates(remote.matrixTemplates.filter((t) => !isDeprecatedTemplate(t.name, t.id)));
     }
     if (remote.subjects) {
       setSubjects(remote.subjects);
@@ -251,23 +266,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     window.addEventListener('storage', handleStorage);
 
-    // Re-sync when user tabs back or focuses browser window
-    const handleFocus = () => {
-      pullFromCloud();
-    };
-    window.addEventListener('focus', handleFocus);
-
-    // Periodic gentle background poll (every 12 seconds)
-    const pollTimer = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        pullFromCloud();
-      }
-    }, 12000);
-
     return () => {
       window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('focus', handleFocus);
-      clearInterval(pollTimer);
     };
   }, [pullFromCloud]);
 

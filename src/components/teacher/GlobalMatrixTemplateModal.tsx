@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useData } from '../../context/DataContext';
+import { useData, isDeprecatedTemplate } from '../../context/DataContext';
 import { GradingMatrixTemplate, MatrixCategory, MatrixSubCategory } from '../../types';
 import { NeuModal } from '../common/NeuModal';
 import { NeuButton } from '../common/NeuButton';
@@ -27,13 +27,16 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
   onClose,
   onShowToast,
 }) => {
-  const { matrixTemplates, saveMatrixTemplate, applyTemplateGlobally } = useData();
+  const { matrixTemplates, saveMatrixTemplate, deleteMatrixTemplate, applyTemplateGlobally } = useData();
+
+  const validTemplates = matrixTemplates.filter((t) => !isDeprecatedTemplate(t.name, t.id));
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
-    matrixTemplates[0]?.id || ''
+    validTemplates[0]?.id || ''
   );
 
   const [isEditing, setIsEditing] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState('');
   const [templateDesc, setTemplateDesc] = useState('');
   const [categories, setCategories] = useState<MatrixCategory[]>([]);
@@ -49,16 +52,18 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
   const [newSubWeight, setNewSubWeight] = useState(20);
 
   const activeTemplate =
-    matrixTemplates.find((t) => t.id === selectedTemplateId) || matrixTemplates[0];
+    validTemplates.find((t) => t.id === selectedTemplateId) || validTemplates[0];
 
   const handleSelectTemplate = (tmpl: GradingMatrixTemplate) => {
     setSelectedTemplateId(tmpl.id);
     setIsEditing(false);
+    setEditingTemplateId(null);
     setExpandedCatId(null);
   };
 
   const handleStartEdit = (tmpl: GradingMatrixTemplate) => {
     setSelectedTemplateId(tmpl.id);
+    setEditingTemplateId(tmpl.id);
     setTemplateName(tmpl.name);
     setTemplateDesc(tmpl.description || '');
     setCategories(JSON.parse(JSON.stringify(tmpl.matrix)));
@@ -68,22 +73,20 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
   };
 
   const handleStartCreateNew = () => {
+    setEditingTemplateId(null); // Explicitly null to create a brand new template!
     setTemplateName('New Grading Matrix Template');
     setTemplateDesc('Custom global grading formula.');
     setCategories([
       {
-        id: 'cat-cs',
+        id: `cat-${Date.now().toString(36)}-1`,
         name: 'Class Standing',
-        weight: 35,
+        weight: 50,
         color: 'emerald',
         subCategories: [
-          { id: 'sub-att', name: 'Attendance', weight: 10 },
-          { id: 'sub-pt', name: 'Performance Task', weight: 50 },
-          { id: 'sub-quiz', name: 'Quizzes', weight: 40 },
+          { id: `sub-${Date.now().toString(36)}-1`, name: 'Quizzes / Outputs', weight: 100 },
         ],
       },
-      { id: 'cat-exam', name: 'Exams', weight: 25, color: 'rose' },
-      { id: 'cat-proj', name: 'Projects', weight: 40, color: 'purple' },
+      { id: `cat-${Date.now().toString(36)}-2`, name: 'Periodic Examinations', weight: 50, color: 'rose' },
     ]);
     setPassingGrade(75);
     setIsEditing(true);
@@ -219,10 +222,11 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
         passingGrade,
         matrix: categories,
       },
-      isEditing && activeTemplate ? activeTemplate.id : undefined
+      editingTemplateId || undefined
     );
 
     setIsEditing(false);
+    setEditingTemplateId(null);
     setSelectedTemplateId(saved.id);
     onShowToast('Global Template Saved', `"${saved.name}" has been saved.`, 'success');
   };
@@ -241,8 +245,10 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
         {/* Top actions */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-            {matrixTemplates.map((tmpl) => {
-              const isSelected = tmpl.id === (isEditing ? activeTemplate?.id : selectedTemplateId);
+            {validTemplates.map((tmpl) => {
+              const isSelected = isEditing
+                ? tmpl.id === editingTemplateId
+                : tmpl.id === selectedTemplateId;
               return (
                 <button
                   key={tmpl.id}
@@ -509,7 +515,14 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
 
             {/* Save Buttons */}
             <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-              <NeuButton type="button" variant="secondary" onClick={() => setIsEditing(false)}>
+              <NeuButton
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditingTemplateId(null);
+                }}
+              >
                 Cancel
               </NeuButton>
               <NeuButton type="button" variant="primary" onClick={handleSaveTemplate} disabled={!isValid}>
@@ -519,7 +532,7 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
           </div>
         ) : (
           /* View Mode */
-          activeTemplate && (
+          activeTemplate ? (
             <div className="space-y-6">
               {/* Template Header Card */}
               <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -543,6 +556,20 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end">
+                  <NeuButton
+                    variant="danger"
+                    size="sm"
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to delete the "${activeTemplate.name}" template?`)) {
+                        deleteMatrixTemplate(activeTemplate.id);
+                        onShowToast('Template Deleted', `"${activeTemplate.name}" was removed.`, 'info');
+                      }
+                    }}
+                    leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+                  >
+                    Delete
+                  </NeuButton>
+
                   <NeuButton
                     variant="secondary"
                     size="sm"
@@ -623,6 +650,21 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
                   Apply to All Courses
                 </NeuButton>
               </div>
+            </div>
+          ) : (
+            <div className="p-8 text-center rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                <Sliders className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">No Global Templates Defined</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Create your own customized grading matrix template or configure course matrices directly.
+                </p>
+              </div>
+              <NeuButton variant="primary" size="sm" onClick={handleStartCreateNew} leftIcon={<Plus className="w-4 h-4" />}>
+                Create Custom Template
+              </NeuButton>
             </div>
           )
         )}

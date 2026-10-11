@@ -4,7 +4,7 @@ import { NeuModal } from '../common/NeuModal';
 import { NeuButton } from '../common/NeuButton';
 import { NeuInput, NeuSelect } from '../common/NeuInput';
 import { useAuth } from '../../context/AuthContext';
-import { useData } from '../../context/DataContext';
+import { useData, isDeprecatedTemplate } from '../../context/DataContext';
 
 interface SubjectModalProps {
   isOpen: boolean;
@@ -15,37 +15,6 @@ interface SubjectModalProps {
   onSave: (subjectData: Omit<Subject, 'id'>, idToUpdate?: string) => void;
 }
 
-const DEFAULT_MATRICES: Record<string, { label: string; matrix: MatrixCategory[] }> = {
-  standard: {
-    label: 'Standard Higher Ed (Att 10%, Quizzes 20%, Acts 20%, Proj 25%, Exam 25%)',
-    matrix: [
-      { id: 'cat-att', name: 'Attendance', weight: 10, color: 'blue' },
-      { id: 'cat-quiz', name: 'Quizzes', weight: 20, color: 'amber' },
-      { id: 'cat-act', name: 'Activities & Labs', weight: 20, color: 'emerald' },
-      { id: 'cat-proj', name: 'Projects', weight: 25, color: 'purple' },
-      { id: 'cat-exam', name: 'Major Exams', weight: 25, color: 'rose' },
-    ],
-  },
-  deped: {
-    label: 'K-12 / DepEd Model (Written Work 30%, Performance Tasks 50%, Exam 20%)',
-    matrix: [
-      { id: 'cat-ww', name: 'Written Work (Quizzes/Tests)', weight: 30, color: 'amber' },
-      { id: 'cat-pt', name: 'Performance Tasks & Projects', weight: 50, color: 'emerald' },
-      { id: 'cat-qe', name: 'Quarterly Examination', weight: 20, color: 'rose' },
-    ],
-  },
-  lab: {
-    label: 'Laboratory / Hands-On Intensive (Att 10%, Labs 40%, Quizzes 15%, Project 20%, Exam 15%)',
-    matrix: [
-      { id: 'cat-att', name: 'Attendance & Safety', weight: 10, color: 'blue' },
-      { id: 'cat-quiz', name: 'Theory Quizzes', weight: 15, color: 'amber' },
-      { id: 'cat-lab', name: 'Practical Lab Experiments', weight: 40, color: 'emerald' },
-      { id: 'cat-proj', name: 'Final Machine Problem', weight: 20, color: 'purple' },
-      { id: 'cat-exam', name: 'Practical Examination', weight: 15, color: 'rose' },
-    ],
-  },
-};
-
 export const SubjectModal: React.FC<SubjectModalProps> = ({
   isOpen,
   onClose,
@@ -55,7 +24,8 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
   onSave,
 }) => {
   const { currentUser, isDean } = useAuth();
-  const { teachers } = useData();
+  const { teachers, matrixTemplates } = useData();
+  const validTemplates = matrixTemplates.filter((t) => !isDeprecatedTemplate(t.name, t.id));
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [sectionId, setSectionId] = useState(selectedSectionId || sections[0]?.id || '');
@@ -63,7 +33,7 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
   const [schedule, setSchedule] = useState('');
   const [units, setUnits] = useState(3);
   const [passingGrade, setPassingGrade] = useState(75);
-  const [matrixPreset, setMatrixPreset] = useState<'standard' | 'deped' | 'lab'>('standard');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('custom-blank');
 
   useEffect(() => {
     if (subjectToEdit) {
@@ -82,20 +52,48 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
       setSchedule('MWF 10:00 AM - 11:30 AM');
       setUnits(3);
       setPassingGrade(75);
-      setMatrixPreset('standard');
+      setSelectedTemplateId(validTemplates.length > 0 ? validTemplates[0].id : 'custom-blank');
     }
-  }, [subjectToEdit, isOpen, selectedSectionId, sections, currentUser?.id, teachers]);
+  }, [subjectToEdit, isOpen, selectedSectionId, sections, currentUser?.id, teachers, matrixTemplates]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !code.trim() || !sectionId) return;
 
-    const initialMatrix = subjectToEdit
-      ? subjectToEdit.matrix
-      : DEFAULT_MATRICES[matrixPreset].matrix.map((c) => ({
+    let initialMatrix: MatrixCategory[] = [];
+    let initialPassingGrade = Number(passingGrade);
+
+    if (subjectToEdit) {
+      initialMatrix = subjectToEdit.matrix;
+    } else {
+      const chosenTemplate = matrixTemplates.find((t) => t.id === selectedTemplateId);
+      if (chosenTemplate) {
+        initialMatrix = chosenTemplate.matrix.map((c) => ({
           ...c,
           id: `cat-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`,
         }));
+        initialPassingGrade = chosenTemplate.passingGrade || initialPassingGrade;
+      } else {
+        // Custom Blank Matrix - Ready for instructor to build criteria from scratch
+        initialMatrix = [
+          {
+            id: `cat-${Date.now().toString(36)}-1`,
+            name: 'Class Standing',
+            weight: 50,
+            color: 'emerald',
+            subCategories: [
+              { id: `sub-${Date.now().toString(36)}-1`, name: 'Quizzes / Outputs', weight: 100 },
+            ],
+          },
+          {
+            id: `cat-${Date.now().toString(36)}-2`,
+            name: 'Periodic Examinations',
+            weight: 50,
+            color: 'rose',
+          },
+        ];
+      }
+    }
 
     const effectiveTeacherId = isDean ? (teacherId || currentUser?.id || 'teacher-1') : (currentUser?.id || 'teacher-1');
 
@@ -107,7 +105,7 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
         teacherId: effectiveTeacherId,
         schedule: schedule.trim(),
         units: Number(units),
-        passingGrade: Number(passingGrade),
+        passingGrade: initialPassingGrade,
         matrix: initialMatrix,
       },
       subjectToEdit?.id
@@ -125,10 +123,15 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
     label: `${t.name} (${t.title || 'Faculty'}${t.id === currentUser?.id ? ' — You' : ''})`,
   }));
 
-  const presetOptions = [
-    { value: 'standard', label: 'Standard Higher Ed (Att 10%, Quiz 20%, Acts 20%, Proj 25%, Exam 25%)' },
-    { value: 'deped', label: 'K-12 / DepEd (Written Work 30%, Performance Tasks 50%, Exam 20%)' },
-    { value: 'lab', label: 'Laboratory Intensive (Att 10%, Labs 40%, Quizzes 15%, Proj 20%, Exam 15%)' },
+  const templateOptions = [
+    ...validTemplates.map((t) => ({
+      value: t.id,
+      label: `${t.name} (Passing: ${t.passingGrade}%)`,
+    })),
+    {
+      value: 'custom-blank',
+      label: 'Build Custom Grading Matrix from Scratch (50% Class Standing, 50% Exam)',
+    },
   ];
 
   return (
@@ -204,10 +207,10 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
 
         {!subjectToEdit && (
           <NeuSelect
-            label="Initial Grading Matrix Template (Fully Customizable Later)"
-            options={presetOptions}
-            value={matrixPreset}
-            onChange={(e) => setMatrixPreset(e.target.value as 'standard' | 'deped' | 'lab')}
+            label="Grading Matrix Template"
+            options={templateOptions}
+            value={selectedTemplateId}
+            onChange={(e) => setSelectedTemplateId(e.target.value)}
           />
         )}
 
