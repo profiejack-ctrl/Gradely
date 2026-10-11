@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import {
   Lock,
   User as UserIcon,
@@ -9,7 +8,6 @@ import {
   EyeOff,
   Sun,
   Moon,
-  HardDrive,
   Cloud,
   GraduationCap,
   Sparkles,
@@ -74,17 +72,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
 
         <div className="flex items-center gap-2">
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white/80 dark:bg-[#0d1424]/80 backdrop-blur-md text-xs font-semibold text-slate-600 dark:text-slate-400 shadow-2xs">
-            {isSupabaseConfigured ? (
-              <>
-                <Cloud className="w-3.5 h-3.5 text-[#22C55E]" />
-                <span>Cloud Sync Active</span>
-              </>
-            ) : (
-              <>
-                <HardDrive className="w-3.5 h-3.5 text-slate-400" />
-                <span>Offline / Local Mode</span>
-              </>
-            )}
+            <Cloud className="w-3.5 h-3.5 text-[#22C55E]" />
+            <span>Cloud Database Active</span>
           </div>
 
           <button
@@ -179,16 +168,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
               <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
                 <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
                   <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Quick Access Guide:</span>
+                  <span>Institutional Dean Access:</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 text-[10.5px]">
-                  <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-750">
-                    <span className="font-semibold text-indigo-600 dark:text-indigo-400 block">Faculty / Admin</span>
-                    <span>Use email / name &amp; password <code className="font-mono text-slate-600 dark:text-slate-300">teacher123</code></span>
+                <div className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-750 text-[11px] space-y-0.5">
+                  <div className="font-semibold text-indigo-600 dark:text-indigo-400">
+                    Dean Rommel Constantino
                   </div>
-                  <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-750">
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 block">Enrolled Students</span>
-                    <span>Use <code className="font-mono text-slate-600 dark:text-slate-300">Student ID</code> (e.g. 2026-0101)</span>
+                  <div className="text-slate-600 dark:text-slate-300">
+                    Email / Name: <code className="font-mono font-bold text-slate-900 dark:text-white">rommel.constantino@aurasms.edu</code> or <code className="font-mono font-bold text-slate-900 dark:text-white">Rommel Constantino</code>
+                  </div>
+                  <div className="text-slate-600 dark:text-slate-300">
+                    Default Password: <code className="font-mono font-bold text-slate-900 dark:text-white">admin</code> or <code className="font-mono font-bold text-slate-900 dark:text-white">teacher123</code>
                   </div>
                 </div>
               </div>

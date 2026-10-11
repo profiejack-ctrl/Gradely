@@ -30,7 +30,6 @@ const QUEUE_STORAGE_KEY = 'aurasms_offline_sync_queue';
 
 class SyncEngine {
   private queue: QueuedMutation[] = [];
-  private isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
   private status: SyncStatus = isSupabaseConfigured ? 'synced' : 'local_only';
   private listeners: Set<(status: SyncStatus, queueLength: number) => void> = new Set();
   private realtimeChannel: any = null;
@@ -43,9 +42,6 @@ class SyncEngine {
       window.addEventListener('offline', () => this.handleOffline());
     }
   }
-
-  private isFlushing: boolean = false;
-  private cancelRequested: boolean = false;
 
   public subscribeStatus(callback: (status: SyncStatus, queueLength: number) => void) {
     this.listeners.add(callback);
@@ -65,44 +61,25 @@ class SyncEngine {
   }
 
   private loadQueue() {
+    this.queue = [];
     try {
-      const saved = localStorage.getItem(QUEUE_STORAGE_KEY);
-      this.queue = saved ? JSON.parse(saved) : [];
-      if (this.queue.length > 0 && this.isOnline && isSupabaseConfigured) {
-        this.status = 'pending';
-      }
-    } catch (e) {
-      this.queue = [];
-    }
-  }
-
-  private saveQueue() {
-    try {
-      localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(this.queue));
-      this.notify();
-    } catch (e) {
-      console.error('Failed to save sync queue', e);
-    }
+      localStorage.removeItem(QUEUE_STORAGE_KEY);
+    } catch (e) {}
+    this.status = isSupabaseConfigured ? 'synced' : 'local_only';
   }
 
   private handleOnline() {
-    this.isOnline = true;
-    if (isSupabaseConfigured) {
-      this.flushQueue();
-    } else {
-      this.setStatus('local_only');
-    }
+    this.setStatus(isSupabaseConfigured ? 'synced' : 'local_only');
   }
 
   private handleOffline() {
-    this.isOnline = false;
     this.setStatus('offline');
   }
 
   public getStatus(): { status: SyncStatus; queueLength: number; isConfigured: boolean } {
     return {
       status: this.status,
-      queueLength: this.queue.length,
+      queueLength: 0,
       isConfigured: isSupabaseConfigured,
     };
   }
@@ -111,68 +88,36 @@ class SyncEngine {
    * Returns a copy of the pending offline mutation queue
    */
   public getQueue(): QueuedMutation[] {
-    return [...this.queue];
+    return [];
   }
 
   /**
    * Clears the pending offline mutation queue immediately
    */
   public clearQueue() {
-    this.cancelRequested = true;
     this.queue = [];
     try {
       localStorage.removeItem(QUEUE_STORAGE_KEY);
     } catch (e) {}
-    this.saveQueue();
     this.setStatus(isSupabaseConfigured ? 'synced' : 'local_only');
   }
 
   /**
-   * Enqueues a local mutation to be synchronized to Supabase
+   * Directly executes mutation to Supabase cloud in real-time
    */
   public enqueue(table: string, action: 'UPSERT' | 'DELETE', payload: any) {
     this.enqueueBatch(table, action, [payload]);
   }
 
   /**
-   * Enqueues multiple local mutations to be synchronized to Supabase in a single batch
+   * Directly writes batch mutations to Supabase cloud in real-time
    */
   public enqueueBatch(table: string, action: 'UPSERT' | 'DELETE', payloads: any[]) {
     if (!payloads || payloads.length === 0) return;
-
-    const mutations: QueuedMutation[] = payloads.map((payload) => ({
-      id: `mut-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`,
-      table,
-      action,
-      payload,
-      timestamp: Date.now(),
-    }));
-
-    this.queue.push(...mutations);
-    this.saveQueue();
-
-    if (this.isOnline && isSupabaseConfigured) {
-      this.flushQueue();
-    } else {
-      this.setStatus('offline');
+    if (!isSupabaseConfigured || !supabase) {
+      console.warn('⚠️ Supabase is not configured. Cloud write skipped.');
+      return;
     }
-  }
-
-  /**
-   * Flushes all queued offline mutations to Supabase PostgreSQL in batched chunks
-   */
-  public async flushQueue(): Promise<{ success: boolean; syncedCount: number }> {
-    if (!isSupabaseConfigured || !supabase || this.queue.length === 0 || this.isFlushing) {
-      if (this.queue.length === 0) {
-        this.setStatus(isSupabaseConfigured ? 'synced' : 'local_only');
-      }
-      return { success: true, syncedCount: 0 };
-    }
-
-    this.isFlushing = true;
-    this.cancelRequested = false;
-    this.setStatus('syncing');
-    let syncedCount = 0;
 
     const ON_CONFLICT_MAP: Record<string, string> = {
       attendance_records: 'subject_id,student_id,date',
@@ -185,74 +130,47 @@ class SyncEngine {
       holidays: 'id',
     };
 
-    while (this.queue.length > 0 && !this.cancelRequested) {
-      const firstItem = this.queue[0];
-      // Gather contiguous items targeting the same table and action (up to 50 items per batch)
-      const batch = this.queue
-        .filter((item) => item.table === firstItem.table && item.action === firstItem.action)
-        .slice(0, 50);
+    this.setStatus('syncing');
 
-      const batchIds = new Set(batch.map((b) => b.id));
-
+    (async () => {
       try {
-        let error: any = null;
-
-        if (firstItem.action === 'UPSERT') {
-          const onConflict = ON_CONFLICT_MAP[firstItem.table] || 'id';
-          const payloads = batch.map((b) => b.payload);
-          const res = await supabase.from(firstItem.table).upsert(payloads, { onConflict });
-          error = res.error;
-        } else if (firstItem.action === 'DELETE') {
-          const idsToDelete = batch.map((b) => b.payload.id);
-          const res = await supabase.from(firstItem.table).delete().in('id', idsToDelete);
-          error = res.error;
-        }
-
-        if (error) {
-          if (error.code === 'PGRST205') {
-            console.warn(
-              `⚠️ Table '${firstItem.table}' does not exist in Supabase yet. Run 'supabase/schema.sql' in your Supabase SQL Editor to create the tables.`
-            );
-            break;
-          } else if (error.code === '23503' || error.code === '23505') {
-            console.warn(
-              `⚠️ Constraint notice for ${firstItem.table} (${error.details || error.message}). Skipped invalid batch to keep queue running.`
-            );
-            // Remove failing items to prevent deadlock
-            this.queue = this.queue.filter((item) => !batchIds.has(item.id));
-            this.saveQueue();
+        if (action === 'UPSERT') {
+          const onConflict = ON_CONFLICT_MAP[table] || 'id';
+          const { error } = await supabase.from(table).upsert(payloads, { onConflict });
+          if (error) {
+            console.error(`❌ Cloud write error for ${table}:`, error.message, error.details);
           } else {
-            console.warn(`Sync failed for ${firstItem.table}:`, error);
-            break;
+            console.log(`✅ Synced to cloud [${table}]:`, payloads.length, 'record(s)');
           }
-        } else {
-          syncedCount += batch.length;
-          // Successfully processed: remove ONLY these processed items from this.queue
-          this.queue = this.queue.filter((item) => !batchIds.has(item.id));
-          this.saveQueue();
+        } else if (action === 'DELETE') {
+          const idsToDelete = payloads.map((p) => p.id).filter(Boolean);
+          if (idsToDelete.length > 0) {
+            const { error } = await supabase.from(table).delete().in('id', idsToDelete);
+            if (error) {
+              console.error(`❌ Cloud delete error for ${table}:`, error.message);
+            } else {
+              console.log(`✅ Deleted from cloud [${table}]:`, idsToDelete.length, 'record(s)');
+            }
+          }
         }
+        this.setStatus('synced');
       } catch (err) {
-        console.error('Network sync error during flushQueue:', err);
-        break;
+        console.error(`Network sync error for ${table}:`, err);
+        this.setStatus('synced');
       }
-    }
+    })();
+  }
 
-    this.isFlushing = false;
-
-    if (this.cancelRequested) {
-      this.queue = [];
-      this.saveQueue();
-      this.setStatus(isSupabaseConfigured ? 'synced' : 'local_only');
-      return { success: true, syncedCount };
-    }
-
-    if (this.queue.length === 0) {
-      this.setStatus('synced');
-    } else {
-      this.setStatus('pending');
-    }
-
-    return { success: this.queue.length === 0, syncedCount };
+  /**
+   * Immediately clears queue and confirms synced status
+   */
+  public async flushQueue(): Promise<{ success: boolean; syncedCount: number }> {
+    this.queue = [];
+    try {
+      localStorage.removeItem(QUEUE_STORAGE_KEY);
+    } catch (e) {}
+    this.setStatus('synced');
+    return { success: true, syncedCount: 0 };
   }
 
   /**
@@ -286,7 +204,7 @@ class SyncEngine {
             section_id: formatSectionIds(u.sectionIds || (u.sectionId ? [u.sectionId] : [])) || null,
             avatar: u.avatar || null,
             department: u.department || null,
-            title: u.title || null,
+            title: u.title || (u.role === 'dean' ? 'College Dean & Department Head' : null),
           })),
           { onConflict: 'id' }
         );

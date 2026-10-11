@@ -193,64 +193,34 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(allUsers));
   }, [allUsers]);
 
-  // Authoritative cloud reconciliation preserving pending offline mutations
-  const reconcileWithCloud = <T extends { id: string }>(
-    remoteItems: T[] | undefined,
-    localFallback: T[],
-    tableName: string
-  ): T[] => {
-    if (!remoteItems) return localFallback;
-
-    // Get any pending offline mutations targeting this table
-    const pending = syncEngine.getQueue().filter((m) => m.table === tableName);
-    const deletedIds = new Set(pending.filter((m) => m.action === 'DELETE').map((m) => m.payload?.id));
-    const upsertedMap = new Map<string, any>();
-    pending.filter((m) => m.action === 'UPSERT').forEach((m) => upsertedMap.set(m.payload?.id, m.payload));
-
-    // Filter out items that are marked for deletion locally
-    const result: T[] = remoteItems.filter((item) => !deletedIds.has(item.id));
-
-    // Overlay or add items that were upserted locally but not yet flushed to cloud
-    upsertedMap.forEach((upsertedItem, id) => {
-      const idx = result.findIndex((item) => item.id === id);
-      if (idx >= 0) {
-        result[idx] = { ...result[idx], ...upsertedItem };
-      } else {
-        result.push(upsertedItem as T);
-      }
-    });
-
-    return result;
-  };
-
-  // Pull remote data on mount & subscribe to Realtime if configured
+  // Pull authoritative remote data directly from Supabase cloud
   const pullFromCloud = useCallback(async () => {
     const remote = await syncEngine.pullAll();
     if (!remote) return;
 
     if (remote.users) {
-      setAllUsers((prev) => reconcileWithCloud(remote.users, prev, 'users'));
+      setAllUsers(remote.users);
     }
     if (remote.sections) {
-      setSections((prev) => reconcileWithCloud(remote.sections, prev, 'sections'));
+      setSections(remote.sections);
     }
     if (remote.matrixTemplates) {
-      setMatrixTemplates((prev) => reconcileWithCloud(remote.matrixTemplates, prev, 'grading_matrix_templates'));
+      setMatrixTemplates(remote.matrixTemplates);
     }
     if (remote.subjects) {
-      setSubjects((prev) => reconcileWithCloud(remote.subjects, prev, 'subjects'));
+      setSubjects(remote.subjects);
     }
     if (remote.assessments) {
-      setAssessments((prev) => reconcileWithCloud(remote.assessments, prev, 'assessments'));
+      setAssessments(remote.assessments);
     }
     if (remote.scores) {
-      setScores((prev) => reconcileWithCloud(remote.scores, prev, 'score_records'));
+      setScores(remote.scores);
     }
     if (remote.attendance) {
-      setAttendanceRecords((prev) => reconcileWithCloud(remote.attendance, prev, 'attendance_records'));
+      setAttendanceRecords(remote.attendance);
     }
     if (remote.holidays) {
-      setHolidays((prev) => reconcileWithCloud(remote.holidays, prev, 'holidays'));
+      setHolidays(remote.holidays);
     }
   }, []);
 

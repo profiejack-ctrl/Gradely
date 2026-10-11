@@ -8,7 +8,6 @@ import { exportSystemDataToJSON } from '../../utils/exportUtils';
 import {
   Sparkles,
   Calendar,
-  RotateCcw,
   Download,
   AlertTriangle,
   CheckCircle2,
@@ -23,7 +22,7 @@ interface DatabaseResetModalProps {
   onShowToast: (title: string, message?: string, type?: 'success' | 'warning' | 'error' | 'info') => void;
 }
 
-type ResetTab = 'official' | 'rollover' | 'demo';
+type ResetTab = 'official' | 'rollover';
 
 export const DatabaseResetModal: React.FC<DatabaseResetModalProps> = ({
   isOpen,
@@ -39,7 +38,6 @@ export const DatabaseResetModal: React.FC<DatabaseResetModalProps> = ({
     getRawData,
     startFreshOfficial,
     rolloverAcademicYear,
-    resetToDemoData,
   } = useData();
   const { currentUser } = useAuth();
 
@@ -57,9 +55,6 @@ export const DatabaseResetModal: React.FC<DatabaseResetModalProps> = ({
   const [clearAttendance, setClearAttendance] = useState(true);
   const [clearAssessments, setClearAssessments] = useState(false);
   const [syncRolloverToCloud, setSyncRolloverToCloud] = useState(true);
-
-  // Tab 3: Demo Reset Settings
-  const [syncDemoToCloud, setSyncDemoToCloud] = useState(true);
 
   const handleExportBackupFirst = () => {
     const data = getRawData();
@@ -110,26 +105,12 @@ export const DatabaseResetModal: React.FC<DatabaseResetModalProps> = ({
     }
   };
 
-  // 3. Execute Demo Reset
-  const handleResetDemo = async () => {
-    setIsProcessing(true);
-    try {
-      await resetToDemoData(syncDemoToCloud);
-      onShowToast('Demo Data Restored', 'All sample classes, students, and scores loaded.', 'info');
-      onClose();
-    } catch (err) {
-      onShowToast('Reset Error', 'Failed to restore demo data.', 'error');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   return (
     <NeuModal
       isOpen={isOpen}
       onClose={onClose}
       title="Academic Year & Database Management"
-      subtitle="Configure term rollover, start fresh for official use, or restore demo data"
+      subtitle="Configure term rollover or start fresh with a clean slate for official institutional use"
       maxWidth="lg"
     >
       <div className="space-y-6">
@@ -159,7 +140,7 @@ export const DatabaseResetModal: React.FC<DatabaseResetModalProps> = ({
         </div>
 
         {/* Tab Selection */}
-        <div className="grid grid-cols-3 gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+        <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
           <button
             type="button"
             onClick={() => setActiveTab('official')}
@@ -170,7 +151,7 @@ export const DatabaseResetModal: React.FC<DatabaseResetModalProps> = ({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Official Launch</span>
+            <span>Clean Slate / Launch</span>
           </button>
 
           <button
@@ -184,19 +165,6 @@ export const DatabaseResetModal: React.FC<DatabaseResetModalProps> = ({
           >
             <Calendar className="w-3.5 h-3.5" />
             <span>New Academic Term</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('demo')}
-            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'demo'
-                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Demo Reset</span>
           </button>
         </div>
 
@@ -386,51 +354,6 @@ export const DatabaseResetModal: React.FC<DatabaseResetModalProps> = ({
           </div>
         )}
 
-        {/* Tab 3: Demo Reset */}
-        {activeTab === 'demo' && (
-          <div className="space-y-4 animate-fade-in">
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
-              <div className="flex items-center gap-2 font-bold text-xs text-slate-800 dark:text-slate-200">
-                <RotateCcw className="w-4 h-4 text-indigo-600" />
-                <span>Restore Standard Demo Dataset</span>
-              </div>
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Resets all classes, dummy students (Sophia Chen, Liam Davis, etc.), standard grading matrix templates, sample assessments, and scores to the default demonstration sandbox.
-              </p>
-            </div>
-
-            <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={syncDemoToCloud}
-                onChange={(e) => setSyncDemoToCloud(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded-md border-slate-300 focus:ring-indigo-500"
-              />
-              <div className="text-xs">
-                <div className="font-bold text-slate-800 dark:text-slate-200">
-                  Also push sample demo data to Supabase Cloud
-                </div>
-                <div className="text-slate-500 text-[11px]">
-                  Populates your cloud database with the complete demo sandbox.
-                </div>
-              </div>
-            </label>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <NeuButton variant="secondary" onClick={onClose} disabled={isProcessing}>
-                Cancel
-              </NeuButton>
-              <NeuButton
-                variant="accent"
-                onClick={handleResetDemo}
-                disabled={isProcessing}
-                leftIcon={<RotateCcw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />}
-              >
-                {isProcessing ? 'Restoring Demo...' : 'Restore Demo Sandbox'}
-              </NeuButton>
-            </div>
-          </div>
-        )}
       </div>
     </NeuModal>
   );

@@ -760,15 +760,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {}
   };
 
-  const isDean = Boolean(
-    currentUser?.role === 'dean' ||
-    currentUser?.email === 'profiejack@gmail.com' ||
-    (currentUser?.role === 'teacher' && (
-      (currentUser?.title || '').toLowerCase().includes('chair') ||
-      (currentUser?.title || '').toLowerCase().includes('dean') ||
-      (currentUser?.title || '').toLowerCase().includes('head')
-    ))
-  );
+  const isDean = Boolean(currentUser?.role === 'dean');
 
   const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'dean';
   const isStudent = currentUser?.role === 'student';
