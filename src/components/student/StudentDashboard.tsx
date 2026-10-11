@@ -6,6 +6,7 @@ import { NeuButton } from '../common/NeuButton';
 import { NeuBadge } from '../common/NeuBadge';
 import { NeuCircularGauge } from '../common/NeuProgress';
 import { calculateStudentSubjectPerformance, convertToGPA } from '../../utils/gradeCalculator';
+import { getStudentSectionIds } from '../../utils/enrollmentUtils';
 import { GRADING_PERIODS } from '../../types';
 import {
   BookOpen,
@@ -32,8 +33,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const { sections, subjects, assessments, scores, attendance } = useData();
 
   const student = currentUser;
-  const enrolledSection = sections.find((s) => s.id === student?.sectionId);
-  const enrolledSubjects = subjects.filter((s) => s.sectionId === student?.sectionId);
+  const enrolledSecIds = getStudentSectionIds(student);
+  const enrolledSections = sections.filter((s) => enrolledSecIds.includes(s.id));
+  const enrolledSection = enrolledSections[0];
+  const enrolledSubjects = subjects.filter((s) => enrolledSecIds.includes(s.sectionId));
 
   // Evaluate performance across all enrolled subjects
   const subjectPerformances = enrolledSubjects.map((subj) =>

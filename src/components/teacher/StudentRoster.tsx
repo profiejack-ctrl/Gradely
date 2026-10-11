@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { User } from '../../types';
 import { NeuCard } from '../common/NeuCard';
 import { NeuButton } from '../common/NeuButton';
@@ -9,6 +10,7 @@ import { StudentModal } from './StudentModal';
 import { BulkStudentUploadModal } from './BulkStudentUploadModal';
 import { calculateStudentSubjectPerformance } from '../../utils/gradeCalculator';
 import { compareByLastName, formatLastFirst } from '../../utils/nameUtils';
+import { isStudentInSection, getStudentSectionIds } from '../../utils/enrollmentUtils';
 import { Plus, Search, Edit2, Trash2, Mail, GraduationCap, Award, Upload, ArrowUpDown } from 'lucide-react';
 
 interface StudentRosterProps {
@@ -20,10 +22,19 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
   initialSectionId,
   onShowToast,
 }) => {
+  const { currentUser, isDean } = useAuth();
   const { sections, subjects, assessments, scores, attendance, students, addStudent, updateStudent, deleteStudent } = useData();
   const [selectedSectionId, setSelectedSectionId] = useState<string>(
     initialSectionId || 'all'
   );
+  const [deanViewAll, setDeanViewAll] = useState(false);
+
+  const accessibleSubjects = isDean && deanViewAll
+    ? subjects
+    : subjects.filter((s) => s.teacherId === currentUser?.id);
+
+  const myAssignedSections = sections.filter((sec) => sec.adviserId === currentUser?.id || accessibleSubjects.some((s) => s.sectionId === sec.id));
+
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'last-name-asc' | 'last-name-desc' | 'first-name-asc' | 'student-number'>('last-name-asc');
   const [displayLastFirst, setDisplayLastFirst] = useState(true);
@@ -32,12 +43,29 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
   const [studentToEdit, setStudentToEdit] = useState<User | null>(null);
 
   const filteredStudents = students.filter((s) => {
-    const matchesSection = selectedSectionId === 'all' || s.sectionId === selectedSectionId;
+    // If viewing a specific section selected from dropdown, match that section
+    if (selectedSectionId !== 'all') {
+      const isSecAllowed = (isDean && deanViewAll) || myAssignedSections.some((sec) => sec.id === selectedSectionId);
+      if (!isSecAllowed) return false;
+
+      const matchesSearch =
+        s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.studentNumber && s.studentNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        s.email.toLowerCase().includes(searchQuery.toLowerCase());
+      return isStudentInSection(s, selectedSectionId) && matchesSearch;
+    }
+
+    // If viewing 'all': Dean with deanViewAll can see all, otherwise strictly myAssignedSections
+    const isSectionAccessible = isDean && deanViewAll
+      ? true
+      : myAssignedSections.some((sec) => isStudentInSection(s, sec.id));
+    if (!isSectionAccessible) return false;
+
     const matchesSearch =
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.studentNumber && s.studentNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
       s.email.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSection && matchesSearch;
+    return matchesSearch;
   });
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
@@ -83,9 +111,11 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
     }
   };
 
+  const visibleSections = isDean && deanViewAll ? sections : myAssignedSections;
+
   const sectionOptions = [
     { value: 'all', label: 'All Enrolled Classes' },
-    ...sections.map((s) => ({ value: s.id, label: `${s.name} (${s.gradeLevelOrYear})` })),
+    ...visibleSections.map((s) => ({ value: s.id, label: `${s.name} (${s.gradeLevelOrYear})` })),
   ];
 
   const sortOptions = [
@@ -106,7 +136,34 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {isDean && (
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setDeanViewAll(false)}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  !deanViewAll
+                    ? 'bg-white dark:bg-slate-700 text-[#1E3A8A] dark:text-blue-300 font-bold shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                My Classes
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeanViewAll(true)}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  deanViewAll
+                    ? 'bg-white dark:bg-slate-700 text-[#F97316] dark:text-orange-400 font-bold shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                All College Classes (Dean)
+              </button>
+            </div>
+          )}
+
           <NeuButton
             variant="secondary"
             size="md"
@@ -181,10 +238,45 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
       </div>
 
       {/* Student Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {sortedStudents.map((student) => {
-          const section = sections.find((s) => s.id === student.sectionId);
-          const studentSubjects = subjects.filter((s) => s.sectionId === student.sectionId);
+      {sortedStudents.length === 0 ? (
+        <div className="p-8 sm:p-12 text-center bg-white dark:bg-[#0d1424] rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm max-w-xl mx-auto my-8 space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-[#1E3A8A] dark:text-blue-400 flex items-center justify-center mx-auto shadow-inner">
+            <GraduationCap className="w-8 h-8 text-[#F97316]" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">No Students Found</h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+              {sections.length === 0
+                ? "You do not currently have any classes registered. Create a class first, then enroll students."
+                : "No students match your search query or selected class filter. Click 'Enroll Student' or upload a roster."}
+            </p>
+          </div>
+          <div className="pt-2 flex items-center justify-center gap-2">
+            <NeuButton
+              variant="primary"
+              size="sm"
+              onClick={handleOpenAdd}
+              leftIcon={<Plus className="w-4 h-4 text-white" />}
+            >
+              Enroll Student
+            </NeuButton>
+            {isDean && !deanViewAll && (
+              <NeuButton
+                variant="secondary"
+                size="sm"
+                onClick={() => setDeanViewAll(true)}
+              >
+                Switch to Dean All-College View
+              </NeuButton>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sortedStudents.map((student) => {
+          const enrolledSecIds = getStudentSectionIds(student);
+          const studentSections = sections.filter((s) => enrolledSecIds.includes(s.id));
+          const studentSubjects = subjects.filter((s) => enrolledSecIds.includes(s.sectionId));
 
           // Calculate average grade across subjects
           let totalGrade = 0;
@@ -244,12 +336,25 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
 
                 <div className="py-2.5 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
                   <div className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-slate-400" />
+                    <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span className="truncate">{student.email}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <GraduationCap className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="font-medium text-slate-700 dark:text-slate-300">{section?.name || 'Unassigned Section'}</span>
+                  <div className="flex items-start gap-2">
+                    <GraduationCap className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                    <div className="flex flex-wrap gap-1">
+                      {studentSections.length > 0 ? (
+                        studentSections.map((sec) => (
+                          <span
+                            key={sec.id}
+                            className="inline-block px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60"
+                          >
+                            {sec.name}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="font-medium text-slate-400 text-xs">Unassigned Section</span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -275,11 +380,12 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
           );
         })}
       </div>
+    )}
 
       <BulkStudentUploadModal
         isOpen={isBulkModalOpen}
         onClose={() => setIsBulkModalOpen(false)}
-        sections={sections}
+        sections={visibleSections}
         selectedSectionId={selectedSectionId !== 'all' ? selectedSectionId : undefined}
         onShowToast={onShowToast}
       />
@@ -287,7 +393,7 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
       <StudentModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        sections={sections}
+        sections={visibleSections}
         selectedSectionId={selectedSectionId !== 'all' ? selectedSectionId : undefined}
         studentToEdit={studentToEdit}
         onSave={handleSaveStudent}

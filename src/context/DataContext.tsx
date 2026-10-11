@@ -24,6 +24,11 @@ import {
 } from '../data/initialData';
 import { syncEngine } from '../services/syncEngine';
 import { saveStoredCredential, USERS_STORAGE_KEY } from './AuthContext';
+import {
+  encodeSectionDescription,
+  formatSectionIds,
+  getStudentSectionIds,
+} from '../utils/enrollmentUtils';
 
 interface DataContextType {
   sections: Section[];
@@ -308,6 +313,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newSection: Section = {
       ...secData,
       id: `sec-${Date.now().toString(36)}`,
+      adviserId: secData.adviserId,
     };
     setSections((prev) => [...prev, newSection]);
     syncEngine.enqueue('sections', 'UPSERT', {
@@ -317,7 +323,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       academic_year: newSection.academicYear,
       semester: newSection.semester,
       room: newSection.room || null,
-      description: newSection.description || null,
+      description: encodeSectionDescription(newSection.description, newSection.adviserId) || null,
     });
     return newSection;
   };
@@ -334,7 +340,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           academic_year: target.academicYear,
           semester: target.semester,
           room: target.room || null,
-          description: target.description || null,
+          description: encodeSectionDescription(target.description, target.adviserId) || null,
         });
       }
       return updated;
@@ -344,7 +350,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteSection = (id: string) => {
     setSections((prev) => prev.filter((s) => s.id !== id));
     setSubjects((prev) => prev.filter((s) => s.sectionId !== id));
-    setAllUsers((prev) => prev.map((u) => (u.sectionId === id ? { ...u, sectionId: undefined } : u)));
+    setAllUsers((prev) =>
+      prev.map((u) => {
+        const secIds = getStudentSectionIds(u).filter((sId) => sId !== id);
+        return {
+          ...u,
+          sectionIds: secIds,
+          sectionId: secIds[0] || undefined,
+        };
+      })
+    );
     syncEngine.enqueue('sections', 'DELETE', { id });
   };
 
@@ -760,13 +775,59 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     syncEngine.enqueue('holidays', 'DELETE', { id });
   };
 
-  // --- Student actions ---
   const addStudent = (studData: Omit<User, 'id' | 'role'>): User => {
+    const studentSecIds = Array.from(new Set([
+      ...(studData.sectionIds || []),
+      ...(studData.sectionId ? [studData.sectionId] : []),
+    ])).filter(Boolean);
+
+    const cleanNumber = (studData.studentNumber || '').trim();
+    const cleanEmail = (studData.email || '').trim().toLowerCase();
+
+    // Check if student exists already
+    const existingIdx = allUsers.findIndex((u) => {
+      if (u.role !== 'student') return false;
+      if (cleanNumber && u.studentNumber && u.studentNumber.trim() === cleanNumber) return true;
+      if (cleanEmail && u.email && u.email.trim().toLowerCase() === cleanEmail) return true;
+      return false;
+    });
+
+    if (existingIdx !== -1) {
+      const existingStudent = allUsers[existingIdx];
+      const existingSecIds = getStudentSectionIds(existingStudent);
+      const combinedSecIds = Array.from(new Set([...existingSecIds, ...studentSecIds])).filter(Boolean);
+
+      const updatedStudent: User = {
+        ...existingStudent,
+        ...studData,
+        sectionId: combinedSecIds[0] || undefined,
+        sectionIds: combinedSecIds,
+      };
+
+      setAllUsers((prev) => prev.map((u) => (u.id === updatedStudent.id ? updatedStudent : u)));
+
+      syncEngine.enqueue('users', 'UPSERT', {
+        id: updatedStudent.id,
+        name: updatedStudent.name,
+        email: updatedStudent.email,
+        role: updatedStudent.role,
+        student_number: updatedStudent.studentNumber || null,
+        section_id: formatSectionIds(combinedSecIds),
+        avatar: updatedStudent.avatar || null,
+        department: updatedStudent.department || null,
+        title: updatedStudent.title || null,
+      });
+
+      return updatedStudent;
+    }
+
     const newStudent: User = {
       ...studData,
       id: `stud-${Date.now().toString(36)}`,
       role: 'student',
       mustChangePassword: true,
+      sectionId: studentSecIds[0] || undefined,
+      sectionIds: studentSecIds,
       avatar: studData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(studData.name)}`,
     };
     setAllUsers((prev) => [...prev, newStudent]);
@@ -776,7 +837,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: newStudent.email,
       role: newStudent.role,
       student_number: newStudent.studentNumber || null,
-      section_id: newStudent.sectionId || null,
+      section_id: formatSectionIds(studentSecIds),
       avatar: newStudent.avatar || null,
       department: newStudent.department || null,
       title: newStudent.title || null,
@@ -801,10 +862,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       });
 
+      const incomingSecIds = Array.from(new Set([
+        ...(studData.sectionIds || []),
+        ...(studData.sectionId ? [studData.sectionId] : []),
+      ])).filter(Boolean);
+
       if (existingIdx !== -1) {
+        const existingStudent = existingUsers[existingIdx];
+        const existingSecIds = getStudentSectionIds(existingStudent);
+        const combinedSecIds = Array.from(new Set([...existingSecIds, ...incomingSecIds])).filter(Boolean);
+
         const updated: User = {
-          ...existingUsers[existingIdx],
+          ...existingStudent,
           ...studData,
+          sectionId: combinedSecIds[0] || undefined,
+          sectionIds: combinedSecIds,
           role: 'student',
         };
         existingUsers[existingIdx] = updated;
@@ -815,7 +887,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: updated.email,
           role: updated.role,
           student_number: updated.studentNumber || null,
-          section_id: updated.sectionId || null,
+          section_id: formatSectionIds(combinedSecIds),
           avatar: updated.avatar || null,
           department: updated.department || null,
           title: updated.title || null,
@@ -826,6 +898,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: `stud-${Date.now().toString(36)}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
           role: 'student',
           mustChangePassword: true,
+          sectionId: incomingSecIds[0] || undefined,
+          sectionIds: incomingSecIds,
           avatar:
             studData.avatar ||
             `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(studData.name)}`,
@@ -838,7 +912,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: newStudent.email,
           role: newStudent.role,
           student_number: newStudent.studentNumber || null,
-          section_id: newStudent.sectionId || null,
+          section_id: formatSectionIds(incomingSecIds),
           avatar: newStudent.avatar || null,
           department: newStudent.department || null,
           title: newStudent.title || null,
@@ -859,16 +933,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateStudent = (id: string, data: Partial<User>) => {
     setAllUsers((prev) => {
-      const updated = prev.map((u) => (u.id === id ? { ...u, ...data } : u));
+      const updated = prev.map((u) => {
+        if (u.id !== id) return u;
+        const targetSecIds = data.sectionIds !== undefined
+          ? data.sectionIds
+          : (data.sectionId !== undefined ? [data.sectionId] : getStudentSectionIds(u));
+        return {
+          ...u,
+          ...data,
+          sectionId: targetSecIds[0] || data.sectionId,
+          sectionIds: targetSecIds,
+        };
+      });
       const target = updated.find((u) => u.id === id);
       if (target) {
+        const secIds = getStudentSectionIds(target);
         syncEngine.enqueue('users', 'UPSERT', {
           id: target.id,
           name: target.name,
           email: target.email,
           role: target.role,
           student_number: target.studentNumber || null,
-          section_id: target.sectionId || null,
+          section_id: formatSectionIds(secIds),
           avatar: target.avatar || null,
           department: target.department || null,
           title: target.title || null,

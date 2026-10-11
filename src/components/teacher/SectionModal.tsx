@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Section } from '../../types';
+import { Section, User } from '../../types';
 import { NeuModal } from '../common/NeuModal';
 import { NeuButton } from '../common/NeuButton';
-import { NeuInput, NeuTextarea } from '../common/NeuInput';
+import { NeuInput, NeuSelect, NeuTextarea } from '../common/NeuInput';
 
 interface SectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   sectionToEdit?: Section | null;
   onSave: (sectionData: Omit<Section, 'id'>, idToUpdate?: string) => void;
+  teachers?: User[];
+  currentUserId?: string;
+  isDean?: boolean;
 }
 
 export const SectionModal: React.FC<SectionModalProps> = ({
@@ -16,6 +19,9 @@ export const SectionModal: React.FC<SectionModalProps> = ({
   onClose,
   sectionToEdit,
   onSave,
+  teachers = [],
+  currentUserId,
+  isDean = false,
 }) => {
   const [name, setName] = useState('');
   const [gradeLevelOrYear, setGradeLevelOrYear] = useState('');
@@ -23,6 +29,7 @@ export const SectionModal: React.FC<SectionModalProps> = ({
   const [semester, setSemester] = useState('1st Semester');
   const [room, setRoom] = useState('');
   const [description, setDescription] = useState('');
+  const [adviserId, setAdviserId] = useState<string>(currentUserId || '');
 
   useEffect(() => {
     if (sectionToEdit) {
@@ -32,6 +39,7 @@ export const SectionModal: React.FC<SectionModalProps> = ({
       setSemester(sectionToEdit.semester);
       setRoom(sectionToEdit.room || '');
       setDescription(sectionToEdit.description || '');
+      setAdviserId(sectionToEdit.adviserId || currentUserId || '');
     } else {
       setName('');
       setGradeLevelOrYear('3rd Year College');
@@ -39,12 +47,16 @@ export const SectionModal: React.FC<SectionModalProps> = ({
       setSemester('1st Semester');
       setRoom('');
       setDescription('');
+      setAdviserId(currentUserId || '');
     }
-  }, [sectionToEdit, isOpen]);
+  }, [sectionToEdit, isOpen, currentUserId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+
+    // For non-deans, always enforce currentUserId as adviser
+    const effectiveAdviserId = isDean ? (adviserId.trim() || undefined) : (currentUserId || undefined);
 
     onSave(
       {
@@ -54,6 +66,7 @@ export const SectionModal: React.FC<SectionModalProps> = ({
         semester: semester.trim(),
         room: room.trim(),
         description: description.trim(),
+        adviserId: effectiveAdviserId,
       },
       sectionToEdit?.id
     );
@@ -110,6 +123,21 @@ export const SectionModal: React.FC<SectionModalProps> = ({
             onChange={(e) => setRoom(e.target.value)}
           />
         </div>
+
+        {isDean && teachers.length > 0 && (
+          <NeuSelect
+            label="Class Adviser / Assigned Faculty"
+            options={[
+              { value: '', label: 'Unassigned / Open' },
+              ...teachers.map((t) => ({
+                value: t.id,
+                label: `${t.name} ${t.department ? `(${t.department})` : ''}`,
+              })),
+            ]}
+            value={adviserId}
+            onChange={(e) => setAdviserId(e.target.value)}
+          />
+        )}
 
         <NeuTextarea
           label="Description (Optional)"

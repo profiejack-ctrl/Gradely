@@ -9,6 +9,12 @@ import {
   GradingMatrixTemplate,
   Holiday,
 } from '../types';
+import {
+  encodeSectionDescription,
+  decodeSectionDescription,
+  parseSectionIds,
+  formatSectionIds,
+} from '../utils/enrollmentUtils';
 
 export type SyncStatus = 'synced' | 'offline' | 'syncing' | 'pending' | 'local_only';
 
@@ -277,7 +283,7 @@ class SyncEngine {
             email: u.email,
             role: u.role,
             student_number: u.studentNumber || null,
-            section_id: u.sectionId || null,
+            section_id: formatSectionIds(u.sectionIds || (u.sectionId ? [u.sectionId] : [])) || null,
             avatar: u.avatar || null,
             department: u.department || null,
             title: u.title || null,
@@ -296,7 +302,7 @@ class SyncEngine {
             academic_year: s.academicYear,
             semester: s.semester,
             room: s.room || null,
-            description: s.description || null,
+            description: encodeSectionDescription(s.description, s.adviserId) || null,
           })),
           { onConflict: 'id' }
         );
@@ -488,28 +494,36 @@ class SyncEngine {
 
       return {
         users: usersRes.data
-          ? usersRes.data.map((u: any) => ({
-              id: u.id,
-              name: u.name,
-              email: u.email,
-              role: u.role,
-              studentNumber: u.student_number || undefined,
-              sectionId: u.section_id || undefined,
-              avatar: u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.name)}`,
-              department: u.department || undefined,
-              title: u.title || undefined,
-            }))
+          ? usersRes.data.map((u: any) => {
+              const secIds = parseSectionIds(u.section_id);
+              return {
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                role: u.role,
+                studentNumber: u.student_number || undefined,
+                sectionId: secIds[0] || undefined,
+                sectionIds: secIds,
+                avatar: u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.name)}`,
+                department: u.department || undefined,
+                title: u.title || undefined,
+              };
+            })
           : undefined,
         sections: sectionsRes.data
-          ? sectionsRes.data.map((s: any) => ({
-              id: s.id,
-              name: s.name,
-              gradeLevelOrYear: s.grade_level_or_year,
-              academicYear: s.academic_year,
-              semester: s.semester,
-              room: s.room || undefined,
-              description: s.description || undefined,
-            }))
+          ? sectionsRes.data.map((s: any) => {
+              const { description, adviserId } = decodeSectionDescription(s.description);
+              return {
+                id: s.id,
+                name: s.name,
+                gradeLevelOrYear: s.grade_level_or_year,
+                academicYear: s.academic_year,
+                semester: s.semester,
+                room: s.room || undefined,
+                description,
+                adviserId,
+              };
+            })
           : undefined,
         matrixTemplates: templatesRes.data
           ? templatesRes.data

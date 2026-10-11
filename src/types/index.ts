@@ -7,7 +7,8 @@ export interface User {
   role: UserRole;
   avatar: string;
   studentNumber?: string; // e.g. 2026-0012
-  sectionId?: string;     // Enrolled section ID (for students)
+  sectionId?: string;     // Enrolled section ID (primary / backward-compatible)
+  sectionIds?: string[];  // All enrolled section IDs (multi-class enrollment)
   title?: string;         // e.g. "Lead Instructor", "Professor"
   department?: string;    // e.g. "Computer Science & IT"
   mustChangePassword?: boolean; // Required to change temporary password on first login
@@ -22,6 +23,7 @@ export interface Section {
   semester: string;         // e.g., "1st Semester" or "Full Year"
   description?: string;
   room?: string;            // e.g., "Lab 402"
+  adviserId?: string;       // Faculty assigned / creator ID
 }
 
 export interface MatrixSubCategory {

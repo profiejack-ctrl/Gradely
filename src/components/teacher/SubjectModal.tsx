@@ -54,7 +54,7 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
   subjectToEdit,
   onSave,
 }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, isDean } = useAuth();
   const { teachers } = useData();
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -97,12 +97,14 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
           id: `cat-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`,
         }));
 
+    const effectiveTeacherId = isDean ? (teacherId || currentUser?.id || 'teacher-1') : (currentUser?.id || 'teacher-1');
+
     onSave(
       {
         name: name.trim(),
         code: code.trim().toUpperCase(),
         sectionId,
-        teacherId: teacherId || currentUser?.id || 'teacher-1',
+        teacherId: effectiveTeacherId,
         schedule: schedule.trim(),
         units: Number(units),
         passingGrade: Number(passingGrade),
@@ -159,7 +161,7 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className={`grid grid-cols-1 ${isDean ? 'sm:grid-cols-2' : ''} gap-3`}>
           <NeuSelect
             label="Target Class / Section"
             options={sectionOptions}
@@ -168,13 +170,15 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
             required
           />
 
-          <NeuSelect
-            label="Assigned Instructor / Faculty"
-            options={teacherOptions.length > 0 ? teacherOptions : [{ value: currentUser?.id || 'teacher-1', label: currentUser?.name || 'Prof. Alex Mercer' }]}
-            value={teacherId}
-            onChange={(e) => setTeacherId(e.target.value)}
-            required
-          />
+          {isDean && (
+            <NeuSelect
+              label="Assigned Instructor / Faculty"
+              options={teacherOptions.length > 0 ? teacherOptions : [{ value: currentUser?.id || 'teacher-1', label: currentUser?.name || 'Faculty Member' }]}
+              value={teacherId}
+              onChange={(e) => setTeacherId(e.target.value)}
+              required
+            />
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

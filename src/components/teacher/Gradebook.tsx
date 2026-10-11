@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   Assessment,
   Subject,
@@ -32,8 +33,10 @@ import {
   Upload,
   Award,
   ArrowUpDown,
+  GraduationCap,
 } from 'lucide-react';
 import { compareByLastName, formatLastFirst } from '../../utils/nameUtils';
+import { isStudentInSection } from '../../utils/enrollmentUtils';
 
 interface GradebookColumn {
   key: string;
@@ -60,6 +63,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
   onNavigateToAttendance,
   onShowToast,
 }) => {
+  const { currentUser, isDean } = useAuth();
   const {
     sections,
     subjects,
@@ -74,11 +78,24 @@ export const Gradebook: React.FC<GradebookProps> = ({
     updateSubjectMatrix,
   } = useData();
 
-  const [selectedSectionId, setSelectedSectionId] = useState<string>(
-    initialSectionId || sections[0]?.id || ''
-  );
+  const [deanViewAll, setDeanViewAll] = useState(false);
 
-  const sectionSubjects = subjects.filter((s) => s.sectionId === selectedSectionId);
+  const accessibleSubjects = isDean && deanViewAll
+    ? subjects
+    : subjects.filter((s) => s.teacherId === currentUser?.id);
+
+  const accessibleSections = isDean && deanViewAll
+    ? sections
+    : sections.filter((sec) => sec.adviserId === currentUser?.id || accessibleSubjects.some((s) => s.sectionId === sec.id));
+
+  const [selectedSectionId, setSelectedSectionId] = useState<string>(() => {
+    if (initialSectionId && accessibleSections.some((s) => s.id === initialSectionId)) {
+      return initialSectionId;
+    }
+    return accessibleSections[0]?.id || '';
+  });
+
+  const sectionSubjects = accessibleSubjects.filter((s) => s.sectionId === selectedSectionId);
 
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(() => {
     if (initialSubjectId && sectionSubjects.some((s) => s.id === initialSubjectId)) {
@@ -86,6 +103,21 @@ export const Gradebook: React.FC<GradebookProps> = ({
     }
     return sectionSubjects[0]?.id || '';
   });
+
+  useEffect(() => {
+    if (accessibleSections.length > 0 && !accessibleSections.some((s) => s.id === selectedSectionId)) {
+      const nextSec = accessibleSections[0].id;
+      setSelectedSectionId(nextSec);
+      const subjs = accessibleSubjects.filter((s) => s.sectionId === nextSec);
+      setSelectedSubjectId(subjs[0]?.id || '');
+    }
+  }, [accessibleSections, selectedSectionId, accessibleSubjects]);
+
+  useEffect(() => {
+    if (sectionSubjects.length > 0 && !sectionSubjects.some((s) => s.id === selectedSubjectId)) {
+      setSelectedSubjectId(sectionSubjects[0].id);
+    }
+  }, [sectionSubjects, selectedSubjectId]);
 
   const [activePeriodTab, setActivePeriodTab] = useState<PeriodViewMode>('prelim');
   const [searchQuery, setSearchQuery] = useState('');
@@ -106,7 +138,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
   const [displayLastFirst, setDisplayLastFirst] = useState(true);
 
   // Students in section
-  const sectionStudents = students.filter((s) => s.sectionId === selectedSectionId);
+  const sectionStudents = students.filter((s) => isStudentInSection(s, selectedSectionId));
   const filteredStudents = sectionStudents.filter(
     (stud) =>
       stud.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -181,7 +213,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
     window.print();
   };
 
-  const sectionOptions = sections.map((s) => ({
+  const sectionOptions = accessibleSections.map((s) => ({
     value: s.id,
     label: `${s.name} (${s.gradeLevelOrYear})`,
   }));
@@ -191,12 +223,51 @@ export const Gradebook: React.FC<GradebookProps> = ({
     label: `${s.code} - ${s.name}`,
   }));
 
+  if (accessibleSubjects.length === 0) {
+    return (
+      <div className="p-8 sm:p-12 text-center bg-white dark:bg-[#0d1424] rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm max-w-xl mx-auto my-8 space-y-4">
+        <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-[#1E3A8A] dark:text-blue-400 flex items-center justify-center mx-auto shadow-inner">
+          <GraduationCap className="w-8 h-8 text-[#F97316]" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">No Courses Assigned Yet</h2>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+            You do not currently have any active course loads assigned to your faculty account.
+            Once the College Dean provisions courses or subjects to you, your gradebook sheets and grading matrices will appear here.
+          </p>
+        </div>
+        {isDean && (
+          <div className="pt-2">
+            <NeuButton
+              variant="primary"
+              size="sm"
+              onClick={() => setDeanViewAll(true)}
+            >
+              Switch to Dean All-College View
+            </NeuButton>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (!activeSubject) {
     return (
       <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
         <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
         <h2 className="text-lg font-bold text-slate-900 dark:text-white">No Courses in this Section</h2>
-        <p className="text-xs text-slate-500">Create a course for this class to start recording grades.</p>
+        <p className="text-xs text-slate-500">Create or assign a course for this class to start recording grades.</p>
+        {isDean && !deanViewAll && (
+          <div className="pt-2">
+            <NeuButton
+              variant="secondary"
+              size="sm"
+              onClick={() => setDeanViewAll(true)}
+            >
+              Show All College Courses (Dean)
+            </NeuButton>
+          </div>
+        )}
       </div>
     );
   }
@@ -229,6 +300,33 @@ export const Gradebook: React.FC<GradebookProps> = ({
 
         {/* Section and Subject Switchers */}
         <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
+          {isDean && (
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold self-end xl:self-auto mb-1 xl:mb-0">
+              <button
+                type="button"
+                onClick={() => setDeanViewAll(false)}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  !deanViewAll
+                    ? 'bg-white dark:bg-slate-700 text-[#1E3A8A] dark:text-blue-300 font-bold shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                My Courses
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeanViewAll(true)}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  deanViewAll
+                    ? 'bg-white dark:bg-slate-700 text-[#F97316] dark:text-orange-400 font-bold shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                All Courses (Dean)
+              </button>
+            </div>
+          )}
+
           <div className="w-44 sm:w-50">
             <NeuSelect
               label="Class / Section"
@@ -236,7 +334,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
               value={selectedSectionId}
               onChange={(e) => {
                 setSelectedSectionId(e.target.value);
-                const subjs = subjects.filter((s) => s.sectionId === e.target.value);
+                const subjs = accessibleSubjects.filter((s) => s.sectionId === e.target.value);
                 if (subjs[0]) setSelectedSubjectId(subjs[0].id);
               }}
             />
@@ -1007,7 +1105,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
       <BulkStudentUploadModal
         isOpen={isBulkModalOpen}
         onClose={() => setIsBulkModalOpen(false)}
-        sections={sections}
+        sections={accessibleSections}
         selectedSectionId={selectedSectionId}
         onShowToast={onShowToast}
       />

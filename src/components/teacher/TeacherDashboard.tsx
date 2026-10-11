@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { NeuCard } from '../common/NeuCard';
@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { calculateStudentSubjectPerformance } from '../../utils/gradeCalculator';
+import { isStudentInSection } from '../../utils/enrollmentUtils';
 
 interface TeacherDashboardProps {
   onNavigate: (tab: string, sectionId?: string, subjectId?: string) => void;
@@ -33,13 +34,26 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const { currentUser, isDean } = useAuth();
   const { sections, subjects, assessments, scores, attendance, students, teachers } = useData();
 
-  // Compute stats across all subjects
+  // Dean oversight toggle: Deans can view all courses in the college or only their own courses
+  const [deanViewAll, setDeanViewAll] = useState(isDean);
+
+  // Scoped subjects: regular instructors only see subjects assigned to their user ID
+  const accessibleSubjects = isDean && deanViewAll
+    ? subjects
+    : subjects.filter((s) => s.teacherId === currentUser?.id);
+
+  // Scoped sections: sections where instructor is adviser OR teaches at least one course
+  const accessibleSections = isDean && deanViewAll
+    ? sections
+    : sections.filter((sec) => sec.adviserId === currentUser?.id || subjects.some((s) => s.sectionId === sec.id && s.teacherId === currentUser?.id));
+
+  // Compute stats strictly across accessible subjects
   let totalGradePoints = 0;
   let totalEvaluations = 0;
   let passingCount = 0;
 
-  subjects.forEach((subj) => {
-    const sectionStudents = students.filter((s) => s.sectionId === subj.sectionId);
+  accessibleSubjects.forEach((subj) => {
+    const sectionStudents = students.filter((s) => isStudentInSection(s, subj.sectionId));
     sectionStudents.forEach((stud) => {
       const perf = calculateStudentSubjectPerformance(
         subj,
@@ -56,6 +70,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const overallAvgGrade = totalEvaluations > 0 ? Math.round((totalGradePoints / totalEvaluations) * 10) / 10 : 0;
   const overallPassingRate = totalEvaluations > 0 ? Math.round((passingCount / totalEvaluations) * 100) : 0;
+
+  // Number of unique enrolled students in accessible courses
+  const enrolledStudentCount = new Set(
+    accessibleSubjects.flatMap((subj) => students.filter((s) => isStudentInSection(s, subj.sectionId)).map((s) => s.id))
+  ).size;
 
   const currentAcademicYear = sections[0]?.academicYear || '2026-2027';
   const currentSemester = sections[0]?.semester || '1st Semester';
@@ -118,8 +137,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{sections.length}</div>
-            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Classes & Sections</div>
+            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">
+              {accessibleSections.length}
+            </div>
+            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              {isDean && deanViewAll ? 'Total College Classes' : 'My Assigned Classes'}
+            </div>
           </div>
         </NeuCard>
 
@@ -128,8 +151,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             <BookOpen className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{subjects.length}</div>
-            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Active Subjects</div>
+            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{accessibleSubjects.length}</div>
+            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Active Courses</div>
           </div>
         </NeuCard>
 
@@ -138,7 +161,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             <Users className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{students.length}</div>
+            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{enrolledStudentCount}</div>
             <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Enrolled Students</div>
           </div>
         </NeuCard>
@@ -215,78 +238,148 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Classes & Subjects */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between px-0.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-0.5">
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               <span>Classes & Active Courses</span>
             </h2>
-            <button
-              onClick={() => onNavigate('sections')}
-              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
-            >
-              View All Classes →
-            </button>
+
+            <div className="flex items-center gap-2">
+              {/* Dean Oversight Switcher */}
+              {isDean && (
+                <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs">
+                  <button
+                    onClick={() => setDeanViewAll(true)}
+                    className={`px-2 py-0.5 rounded-lg font-semibold transition-all ${
+                      deanViewAll
+                        ? 'bg-white dark:bg-[#0d1424] text-[#1E3A8A] dark:text-blue-400 shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    All Courses ({subjects.length})
+                  </button>
+                  <button
+                    onClick={() => setDeanViewAll(false)}
+                    className={`px-2 py-0.5 rounded-lg font-semibold transition-all ${
+                      !deanViewAll
+                        ? 'bg-white dark:bg-[#0d1424] text-[#1E3A8A] dark:text-blue-400 shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    My Courses ({subjects.filter((s) => s.teacherId === currentUser?.id).length})
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={() => onNavigate('sections')}
+                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                {isDean ? 'View All Classes →' : 'Manage Classes →'}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-4">
-            {sections.map((sec) => {
-              const secSubjects = subjects.filter((s) => s.sectionId === sec.id);
-              const secStudents = students.filter((s) => s.sectionId === sec.id);
+            {accessibleSections.length === 0 ? (
+              <NeuCard className="p-8 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-[#1E3A8A] dark:text-blue-400 border border-indigo-200 dark:border-indigo-800/60 flex items-center justify-center mx-auto shadow-2xs">
+                  <Layers className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    No Assigned Classes Yet
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">
+                    You do not have any classes or teaching courses created yet. Click below to create your class or course.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
+                  <NeuButton
+                    variant="primary"
+                    size="sm"
+                    onClick={onOpenSectionModal}
+                    leftIcon={<Plus className="w-4 h-4 text-white" />}
+                  >
+                    Create New Class
+                  </NeuButton>
+                  <NeuButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onNavigate('sections')}
+                  >
+                    Manage Classes
+                  </NeuButton>
+                </div>
+              </NeuCard>
+            ) : (
+              accessibleSections.map((sec) => {
+                const secSubjects = accessibleSubjects.filter((s) => s.sectionId === sec.id);
+                const secStudents = students.filter((s) => isStudentInSection(s, sec.id));
 
-              return (
-                <NeuCard key={sec.id} className="space-y-3.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white">{sec.name}</h3>
-                        <NeuBadge variant="primary" size="sm">
-                          {sec.gradeLevelOrYear}
-                        </NeuBadge>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{sec.description || sec.academicYear}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-                      <span>{secStudents.length} Students</span>
-                      <span>•</span>
-                      <span>{secSubjects.length} Courses</span>
-                    </div>
-                  </div>
-
-                  {/* Subject Chips */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {secSubjects.map((subj) => (
-                      <div
-                        key={subj.id}
-                        onClick={() => onNavigate('gradebook', sec.id, subj.id)}
-                        className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 cursor-pointer transition-all flex flex-col justify-between gap-2 group"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span className="text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                              {subj.code}
-                            </span>
-                            <h4 className="text-sm font-semibold text-slate-900 dark:text-white leading-tight mt-0.5">
-                              {subj.name}
-                            </h4>
-                          </div>
-                          <NeuBadge variant="neutral" size="sm">
-                            {subj.matrix.length} Matrix Items
+                return (
+                  <NeuCard key={sec.id} className="space-y-3.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">{sec.name}</h3>
+                          <NeuBadge variant="primary" size="sm">
+                            {sec.gradeLevelOrYear}
                           </NeuBadge>
                         </div>
-
-                        <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
-                          <span>{subj.schedule || 'MWF'}</span>
-                          <span className="text-indigo-600 dark:text-indigo-400 font-semibold group-hover:underline">
-                            Gradebook →
-                          </span>
-                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{sec.description || sec.academicYear}</p>
                       </div>
-                    ))}
-                  </div>
-                </NeuCard>
-              );
-            })}
+
+                      <div className="flex items-center gap-2.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                        <span>{secStudents.length} Students</span>
+                        <span>•</span>
+                        <span>{secSubjects.length} Courses</span>
+                      </div>
+                    </div>
+
+                    {/* Subject Chips */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {secSubjects.map((subj) => {
+                        const instructor = teachers.find((t) => t.id === subj.teacherId);
+                        return (
+                          <div
+                            key={subj.id}
+                            onClick={() => onNavigate('gradebook', sec.id, subj.id)}
+                            className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 cursor-pointer transition-all flex flex-col justify-between gap-2 group"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                  {subj.code}
+                                </span>
+                                <h4 className="text-sm font-semibold text-slate-900 dark:text-white leading-tight mt-0.5">
+                                  {subj.name}
+                                </h4>
+                                {isDean && deanViewAll && instructor && (
+                                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 font-medium">
+                                    Faculty: {instructor.name}
+                                  </p>
+                                )}
+                              </div>
+                              <NeuBadge variant="neutral" size="sm">
+                                {subj.matrix.length} Matrix Items
+                              </NeuBadge>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+                              <span>{subj.schedule || 'MWF'}</span>
+                              <span className="text-indigo-600 dark:text-indigo-400 font-semibold group-hover:underline">
+                                Gradebook →
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </NeuCard>
+                );
+              })
+            )}
           </div>
         </div>
 

@@ -11,6 +11,7 @@ import {
   calculateStudentSubjectPerformance,
   calculateAttendanceStats,
 } from '../../utils/gradeCalculator';
+import { getStudentSectionIds } from '../../utils/enrollmentUtils';
 import {
   CalendarCheck,
   CheckCircle2,
@@ -41,7 +42,8 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
   const { subjects, assessments, scores, attendance } = useData();
 
   const student = currentUser;
-  const enrolledSubjects = subjects.filter((s) => s.sectionId === student?.sectionId);
+  const enrolledSecIds = getStudentSectionIds(student);
+  const enrolledSubjects = subjects.filter((s) => enrolledSecIds.includes(s.sectionId));
 
   const [activeSubjectId, setActiveSubjectId] = useState<string>(
     selectedSubjectId || enrolledSubjects[0]?.id || ''

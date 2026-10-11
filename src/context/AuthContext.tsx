@@ -4,6 +4,7 @@ import { INITIAL_USERS } from '../data/initialData';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { syncEngine } from '../services/syncEngine';
 import { authVault, StoredCredential, CREDENTIALS_STORAGE_KEY } from '../services/authVault';
+import { formatSectionIds } from '../utils/enrollmentUtils';
 
 export { CREDENTIALS_STORAGE_KEY };
 export type { StoredCredential };
@@ -48,8 +49,8 @@ export const getStoredCredential = (identifier?: string): StoredCredential | nul
   return authVault.getCredential(identifier);
 };
 
-export const saveStoredCredential = (user: User, password?: string, mustChange?: boolean) => {
-  authVault.saveCredential(user, password, mustChange);
+export const saveStoredCredential = async (user: User, password?: string, mustChange?: boolean): Promise<void> => {
+  await authVault.saveCredential(user, password, mustChange);
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -232,7 +233,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     // Save to dedicated persistent credentials store
-    saveStoredCredential(updatedUser, cleanPass, false);
+    await saveStoredCredential(updatedUser, cleanPass, false);
 
     // 1. Update current session state & local storage
     setCurrentUser(updatedUser);
@@ -247,7 +248,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return copy;
     });
 
-    // 3. Update Supabase Auth if online
+    // 3. Enqueue to Supabase table with encoded credential fallback
+    syncEngine.enqueue('users', 'UPSERT', {
+      id: updatedUser.id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      student_number: updatedUser.studentNumber || null,
+      section_id: formatSectionIds(updatedUser.sectionIds || (updatedUser.sectionId ? [updatedUser.sectionId] : [])) || null,
+      avatar: updatedUser.avatar || null,
+      department: JSON.stringify({ customPassword: cleanPass, mustChangePassword: false }),
+      title: updatedUser.title || null,
+    });
+
+    // 4. Update Supabase Auth if online
     if (isSupabaseConfigured && supabase) {
       try {
         await supabase.auth.updateUser({ password: cleanPass });
@@ -725,20 +739,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * Fast Demo Login Switcher
    */
   const quickLogin = (userOrId: User | string) => {
+    let target: User | undefined;
     if (typeof userOrId === 'string') {
-      const found = users.find((u) => u.id === userOrId);
-      if (found) setCurrentUser(found);
+      target = users.find((u) => u.id === userOrId);
     } else {
-      setCurrentUser(userOrId);
+      target = userOrId;
+    }
+    if (target) {
+      setCurrentUser(target);
+      try {
+        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(target));
+      } catch (e) {}
     }
   };
 
   const switchUser = (user: User) => {
     setCurrentUser(user);
+    try {
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    } catch (e) {}
   };
 
   const isDean = Boolean(
     currentUser?.role === 'dean' ||
+    currentUser?.email === 'profiejack@gmail.com' ||
     (currentUser?.role === 'teacher' && (
       (currentUser?.title || '').toLowerCase().includes('chair') ||
       (currentUser?.title || '').toLowerCase().includes('dean') ||

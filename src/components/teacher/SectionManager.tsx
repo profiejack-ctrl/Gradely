@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { Section } from '../../types';
 import { NeuCard } from '../common/NeuCard';
 import { NeuButton } from '../common/NeuButton';
 import { NeuBadge } from '../common/NeuBadge';
 import { SectionModal } from './SectionModal';
 import { BulkStudentUploadModal } from './BulkStudentUploadModal';
-import { Plus, Edit2, Trash2, Users, BookOpen, MapPin, Calendar, Upload } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, BookOpen, MapPin, Calendar, Upload, GraduationCap, ShieldCheck } from 'lucide-react';
+import { isStudentInSection } from '../../utils/enrollmentUtils';
 
 interface SectionManagerProps {
   onNavigateToSubjects: (sectionId: string) => void;
@@ -19,11 +21,24 @@ export const SectionManager: React.FC<SectionManagerProps> = ({
   onNavigateToRoster,
   onShowToast,
 }) => {
-  const { sections, subjects, students, addSection, updateSection, deleteSection } = useData();
+  const { currentUser, isDean } = useAuth();
+  const { sections, subjects, students, teachers, addSection, updateSection, deleteSection } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [selectedSectionForBulk, setSelectedSectionForBulk] = useState<string | undefined>(undefined);
   const [sectionToEdit, setSectionToEdit] = useState<Section | null>(null);
+
+  // Instructors default to their own classes; Deans default to all college classes
+  const [sectionFilter, setSectionFilter] = useState<'all' | 'my'>(isDean ? 'all' : 'my');
+
+  // Classes where current teacher is adviser OR teaches an assigned subject
+  const mySections = sections.filter((sec) =>
+    sec.adviserId === currentUser?.id ||
+    subjects.some((s) => s.sectionId === sec.id && s.teacherId === currentUser?.id)
+  );
+
+  // Non-deans MUST strictly only see their own sections. Deans can toggle.
+  const displayedSections = isDean ? (sectionFilter === 'my' ? mySections : sections) : mySections;
 
   const handleOpenAdd = () => {
     setSectionToEdit(null);
@@ -67,7 +82,35 @@ export const SectionManager: React.FC<SectionManagerProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Quick Filter: All vs My Classes (Only visible for Dean) */}
+          {isDean && (
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setSectionFilter('all')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  sectionFilter === 'all'
+                    ? 'bg-white dark:bg-slate-700 text-[#1E3A8A] dark:text-blue-300 font-bold shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                All Classes ({sections.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSectionFilter('my')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  sectionFilter === 'my'
+                    ? 'bg-white dark:bg-slate-700 text-[#F97316] dark:text-orange-400 font-bold shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                My Classes ({mySections.length})
+              </button>
+            </div>
+          )}
+
           <NeuButton
             variant="secondary"
             size="md"
@@ -92,10 +135,49 @@ export const SectionManager: React.FC<SectionManagerProps> = ({
       </div>
 
       {/* Sections Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {sections.map((sec) => {
+      {displayedSections.length === 0 ? (
+        <div className="p-8 sm:p-12 text-center bg-white dark:bg-[#0d1424] rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm max-w-xl mx-auto my-8 space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-[#1E3A8A] dark:text-blue-400 flex items-center justify-center mx-auto shadow-inner">
+            <GraduationCap className="w-8 h-8 text-[#F97316]" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              {!isDean || sectionFilter === 'my' ? 'No Assigned Teaching Courses' : 'No Classes Created Yet'}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+              {!isDean
+                ? "You do not have any classes or teaching courses created yet. Click 'Create New Class' to initialize your cohort."
+                : sectionFilter === 'my'
+                ? `You do not have any teaching courses assigned to any class yet. You can switch to "All Classes (${sections.length})" or create a course to attach to a class.`
+                : "No student cohort classes exist yet. Click 'Create New Class' to initialize a cohort."}
+            </p>
+          </div>
+          <div className="pt-2 flex items-center justify-center gap-2">
+            {isDean && sectionFilter === 'my' && sections.length > 0 && (
+              <NeuButton
+                variant="secondary"
+                size="sm"
+                onClick={() => setSectionFilter('all')}
+              >
+                View All Classes ({sections.length})
+              </NeuButton>
+            )}
+            <NeuButton
+              variant="primary"
+              size="sm"
+              onClick={handleOpenAdd}
+              leftIcon={<Plus className="w-4 h-4 text-white" />}
+            >
+              Create New Class
+            </NeuButton>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {displayedSections.map((sec) => {
           const secSubjects = subjects.filter((s) => s.sectionId === sec.id);
-          const secStudents = students.filter((s) => s.sectionId === sec.id);
+          const secStudents = students.filter((s) => isStudentInSection(s, sec.id));
+          const adviser = teachers.find((t) => t.id === sec.adviserId);
 
           return (
             <NeuCard key={sec.id} className="flex flex-col justify-between gap-4 relative group">
@@ -103,11 +185,21 @@ export const SectionManager: React.FC<SectionManagerProps> = ({
                 {/* Header with quick actions */}
                 <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h2 className="text-base font-bold text-slate-900 dark:text-white">{sec.name}</h2>
                       <NeuBadge variant="primary" size="sm">
                         {sec.gradeLevelOrYear}
                       </NeuBadge>
+                      {sec.adviserId === currentUser?.id && (
+                        <NeuBadge variant="warning" size="sm">
+                          Adviser
+                        </NeuBadge>
+                      )}
+                      {secSubjects.some((s) => s.teacherId === currentUser?.id) && (
+                        <NeuBadge variant="success" size="sm">
+                          My Teaching
+                        </NeuBadge>
+                      )}
                     </div>
                     <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -133,11 +225,17 @@ export const SectionManager: React.FC<SectionManagerProps> = ({
                   </div>
                 </div>
 
-                {/* Description & Room */}
+                {/* Description, Room & Adviser */}
                 <div className="py-2.5 space-y-1.5">
+                  {adviser && (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span>Adviser: <strong className="font-semibold text-slate-800 dark:text-slate-200">{adviser.name}</strong></span>
+                    </div>
+                  )}
                   {sec.room && (
                     <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
-                      <MapPin className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <MapPin className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                       <span>{sec.room}</span>
                     </div>
                   )}
@@ -202,11 +300,12 @@ export const SectionManager: React.FC<SectionManagerProps> = ({
           );
         })}
       </div>
+    )}
 
       <BulkStudentUploadModal
         isOpen={isBulkModalOpen}
         onClose={() => setIsBulkModalOpen(false)}
-        sections={sections}
+        sections={displayedSections}
         selectedSectionId={selectedSectionForBulk}
         onShowToast={onShowToast}
       />
@@ -216,6 +315,9 @@ export const SectionManager: React.FC<SectionManagerProps> = ({
         onClose={() => setIsModalOpen(false)}
         sectionToEdit={sectionToEdit}
         onSave={handleSave}
+        teachers={teachers}
+        currentUserId={currentUser?.id}
+        isDean={isDean}
       />
     </div>
   );
