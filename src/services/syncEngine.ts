@@ -102,6 +102,13 @@ class SyncEngine {
   }
 
   /**
+   * Returns a copy of the pending offline mutation queue
+   */
+  public getQueue(): QueuedMutation[] {
+    return [...this.queue];
+  }
+
+  /**
    * Clears the pending offline mutation queue immediately
    */
   public clearQueue() {
@@ -505,14 +512,16 @@ class SyncEngine {
             }))
           : undefined,
         matrixTemplates: templatesRes.data
-          ? templatesRes.data.map((t: any) => ({
-              id: t.id,
-              name: t.name,
-              description: t.description || undefined,
-              isDefault: t.is_default ?? false,
-              passingGrade: t.passing_grade ?? 75,
-              matrix: t.matrix || [],
-            }))
+          ? templatesRes.data
+              .filter((t: any) => t.id !== 'sys-auth-vault')
+              .map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                description: t.description || undefined,
+                isDefault: t.is_default ?? false,
+                passingGrade: t.passing_grade ?? 75,
+                matrix: t.matrix || [],
+              }))
           : undefined,
         subjects: subjectsRes.data
           ? subjectsRes.data.map((sub: any) => ({
@@ -589,11 +598,18 @@ class SyncEngine {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public' },
-        () => {
+        (payload) => {
+          console.log('⚡ Supabase Realtime database change received:', payload.eventType, payload.table);
           onRemoteChange();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('⚡ Realtime connected to Supabase');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('⚠️ Supabase Realtime channel status:', status);
+        }
+      });
   }
 }
 

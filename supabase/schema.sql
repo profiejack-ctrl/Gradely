@@ -6,17 +6,19 @@
 -- Enable UUID extension if needed
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. Users Table (Teachers, Students, and Admins)
+-- 1. Users Table (Teachers, Students, and Admins / Deans)
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
-    role TEXT CHECK (role IN ('teacher', 'student')) NOT NULL DEFAULT 'student',
+    role TEXT CHECK (role IN ('dean', 'teacher', 'student')) NOT NULL DEFAULT 'student',
     student_number TEXT,
     section_id TEXT,
     avatar TEXT,
     department TEXT,
     title TEXT,
+    custom_password TEXT,
+    must_change_password BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -146,3 +148,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE assessments;
 ALTER PUBLICATION supabase_realtime ADD TABLE score_records;
 ALTER PUBLICATION supabase_realtime ADD TABLE attendance_records;
 ALTER PUBLICATION supabase_realtime ADD TABLE holidays;
+ALTER PUBLICATION supabase_realtime ADD TABLE grading_matrix_templates;
+
+-- =============================================================================
+-- Migration Commands for Existing Supabase Databases:
+-- Run these if your tables were already created previously:
+-- =============================================================================
+-- ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+-- ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('dean', 'teacher', 'student'));
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_password TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE;

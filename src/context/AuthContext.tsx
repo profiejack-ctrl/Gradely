@@ -3,6 +3,10 @@ import { User, UserRole } from '../types';
 import { INITIAL_USERS } from '../data/initialData';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { syncEngine } from '../services/syncEngine';
+import { authVault, StoredCredential, CREDENTIALS_STORAGE_KEY } from '../services/authVault';
+
+export { CREDENTIALS_STORAGE_KEY };
+export type { StoredCredential };
 
 export interface SignUpParams {
   email: string;
@@ -39,40 +43,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const USERS_STORAGE_KEY = 'aurasms_data_store_v3_users';
 export const CURRENT_USER_KEY = 'aurasms_current_user_v2';
-export const CREDENTIALS_STORAGE_KEY = 'aurasms_auth_credentials_v2';
-
-export interface StoredCredential {
-  customPassword?: string;
-  mustChangePassword?: boolean;
-}
 
 export const getStoredCredential = (identifier?: string): StoredCredential | null => {
-  if (!identifier) return null;
-  try {
-    const raw = localStorage.getItem(CREDENTIALS_STORAGE_KEY);
-    if (!raw) return null;
-    const map: Record<string, StoredCredential> = JSON.parse(raw);
-    return map[identifier.trim().toLowerCase()] || null;
-  } catch {
-    return null;
-  }
+  return authVault.getCredential(identifier);
 };
 
 export const saveStoredCredential = (user: User, password?: string, mustChange?: boolean) => {
-  try {
-    const raw = localStorage.getItem(CREDENTIALS_STORAGE_KEY);
-    const map: Record<string, StoredCredential> = raw ? JSON.parse(raw) : {};
-    const cred: StoredCredential = {
-      customPassword: password,
-      mustChangePassword: mustChange ?? false,
-    };
-    if (user.id) map[user.id.trim().toLowerCase()] = cred;
-    if (user.email) map[user.email.trim().toLowerCase()] = cred;
-    if (user.studentNumber) map[user.studentNumber.trim().toLowerCase()] = cred;
-    localStorage.setItem(CREDENTIALS_STORAGE_KEY, JSON.stringify(map));
-  } catch (e) {
-    console.error('Failed to save credential to dedicated storage', e);
-  }
+  authVault.saveCredential(user, password, mustChange);
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -121,6 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initAuth = async () => {
       setIsLoading(true);
+      await authVault.syncDown();
       if (isSupabaseConfigured && supabase) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -362,6 +340,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Please enter your Student ID, Email, or Full Name.' };
     }
 
+    // Always sync down latest cloud credentials first so updates made on production/mobile are immediately recognized
+    await authVault.syncDown();
+
     // 1. Get cached local users
     const localUsers: User[] = (() => {
       try {
@@ -436,6 +417,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (cloudProfile) {
+          let embeddedCred: StoredCredential | null = null;
+          if (cloudProfile.department && cloudProfile.department.startsWith('{')) {
+            try {
+              embeddedCred = JSON.parse(cloudProfile.department);
+            } catch (e) {}
+          }
+
+          const cred =
+            authVault.getCredential(cloudProfile.id) ||
+            (cloudProfile.email ? authVault.getCredential(cloudProfile.email) : null) ||
+            (cloudProfile.student_number ? authVault.getCredential(cloudProfile.student_number) : null) ||
+            embeddedCred;
+
           const mappedCloudUser: User = {
             id: cloudProfile.id,
             name: cloudProfile.name,
@@ -446,16 +440,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cloudProfile.name)}`,
             studentNumber: cloudProfile.student_number || undefined,
             sectionId: cloudProfile.section_id || undefined,
-            department: cloudProfile.department || undefined,
+            department: (embeddedCred && cloudProfile.role === 'student') ? undefined : cloudProfile.department || undefined,
             title: cloudProfile.title || undefined,
             mustChangePassword:
-              matchedUser?.mustChangePassword ??
-              (cloudProfile.role === 'student' && !matchedUser?.customPassword ? true : false),
-            customPassword: matchedUser?.customPassword,
+              cred ? Boolean(cred.mustChangePassword) : cloudProfile.role === 'student',
+            customPassword: cred?.customPassword,
           };
 
           matchedUser = matchedUser
-            ? { ...matchedUser, ...mappedCloudUser, customPassword: matchedUser.customPassword, mustChangePassword: matchedUser.mustChangePassword }
+            ? { ...matchedUser, ...mappedCloudUser, customPassword: cred?.customPassword ?? matchedUser.customPassword, mustChangePassword: cred?.mustChangePassword ?? matchedUser.mustChangePassword }
             : mappedCloudUser;
         }
       } catch (err: any) {

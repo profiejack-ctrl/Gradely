@@ -82,14 +82,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <NeuButton
-            variant="secondary"
-            size="md"
-            onClick={() => onNavigate('faculty')}
-            leftIcon={<Users className="w-4 h-4 text-slate-600 dark:text-slate-300" />}
-          >
-            {isDean ? `Manage Faculty (${teachers.length})` : `Faculty Directory (${teachers.length})`}
-          </NeuButton>
+          {isDean && (
+            <NeuButton
+              variant="secondary"
+              size="md"
+              onClick={() => onNavigate('faculty')}
+              leftIcon={<Users className="w-4 h-4 text-slate-600 dark:text-slate-300" />}
+            >
+              Manage Faculty ({teachers.length})
+            </NeuButton>
+          )}
           <NeuButton
             variant="secondary"
             size="md"

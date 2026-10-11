@@ -188,22 +188,34 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(allUsers));
   }, [allUsers]);
 
-  // Helper for non-destructive local-cloud reconciliation
-  const mergeById = <T extends { id: string }>(local: T[], remote?: T[]): T[] => {
-    if (!remote || remote.length === 0) return local;
-    const map = new Map<string, T>();
-    // First keep all current local records
-    local.forEach((item) => map.set(item.id, item));
-    // Overlay cloud records while preserving any existing local metadata (like custom passwords)
-    remote.forEach((remoteItem) => {
-      const existing = map.get(remoteItem.id);
-      if (existing) {
-        map.set(remoteItem.id, { ...existing, ...remoteItem, ...(existing as any).customPassword ? { customPassword: (existing as any).customPassword } : {} });
+  // Authoritative cloud reconciliation preserving pending offline mutations
+  const reconcileWithCloud = <T extends { id: string }>(
+    remoteItems: T[] | undefined,
+    localFallback: T[],
+    tableName: string
+  ): T[] => {
+    if (!remoteItems) return localFallback;
+
+    // Get any pending offline mutations targeting this table
+    const pending = syncEngine.getQueue().filter((m) => m.table === tableName);
+    const deletedIds = new Set(pending.filter((m) => m.action === 'DELETE').map((m) => m.payload?.id));
+    const upsertedMap = new Map<string, any>();
+    pending.filter((m) => m.action === 'UPSERT').forEach((m) => upsertedMap.set(m.payload?.id, m.payload));
+
+    // Filter out items that are marked for deletion locally
+    const result: T[] = remoteItems.filter((item) => !deletedIds.has(item.id));
+
+    // Overlay or add items that were upserted locally but not yet flushed to cloud
+    upsertedMap.forEach((upsertedItem, id) => {
+      const idx = result.findIndex((item) => item.id === id);
+      if (idx >= 0) {
+        result[idx] = { ...result[idx], ...upsertedItem };
       } else {
-        map.set(remoteItem.id, remoteItem);
+        result.push(upsertedItem as T);
       }
     });
-    return Array.from(map.values());
+
+    return result;
   };
 
   // Pull remote data on mount & subscribe to Realtime if configured
@@ -211,29 +223,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const remote = await syncEngine.pullAll();
     if (!remote) return;
 
-    if (remote.users && remote.users.length > 0) {
-      setAllUsers((prev) => mergeById(prev, remote.users));
+    if (remote.users) {
+      setAllUsers((prev) => reconcileWithCloud(remote.users, prev, 'users'));
     }
-    if (remote.sections && remote.sections.length > 0) {
-      setSections((prev) => mergeById(prev, remote.sections));
+    if (remote.sections) {
+      setSections((prev) => reconcileWithCloud(remote.sections, prev, 'sections'));
     }
-    if (remote.matrixTemplates && remote.matrixTemplates.length > 0) {
-      setMatrixTemplates((prev) => mergeById(prev, remote.matrixTemplates));
+    if (remote.matrixTemplates) {
+      setMatrixTemplates((prev) => reconcileWithCloud(remote.matrixTemplates, prev, 'grading_matrix_templates'));
     }
-    if (remote.subjects && remote.subjects.length > 0) {
-      setSubjects((prev) => mergeById(prev, remote.subjects));
+    if (remote.subjects) {
+      setSubjects((prev) => reconcileWithCloud(remote.subjects, prev, 'subjects'));
     }
-    if (remote.assessments && remote.assessments.length > 0) {
-      setAssessments((prev) => mergeById(prev, remote.assessments));
+    if (remote.assessments) {
+      setAssessments((prev) => reconcileWithCloud(remote.assessments, prev, 'assessments'));
     }
-    if (remote.scores && remote.scores.length > 0) {
-      setScores((prev) => mergeById(prev, remote.scores));
+    if (remote.scores) {
+      setScores((prev) => reconcileWithCloud(remote.scores, prev, 'score_records'));
     }
-    if (remote.attendance && remote.attendance.length > 0) {
-      setAttendanceRecords((prev) => mergeById(prev, remote.attendance));
+    if (remote.attendance) {
+      setAttendanceRecords((prev) => reconcileWithCloud(remote.attendance, prev, 'attendance_records'));
     }
-    if (remote.holidays && remote.holidays.length > 0) {
-      setHolidays((prev) => mergeById(prev, remote.holidays));
+    if (remote.holidays) {
+      setHolidays((prev) => reconcileWithCloud(remote.holidays, prev, 'holidays'));
     }
   }, []);
 
@@ -251,10 +263,40 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [allUsers, sections, matrixTemplates, subjects, assessments, scores, attendance, holidays]);
 
   useEffect(() => {
+    // Initial fetch from cloud
     pullFromCloud();
+
+    // Subscribe to realtime database changes
     syncEngine.initRealtime(() => {
       pullFromCloud();
     });
+
+    // Cross-tab synchronization via localStorage storage event
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key && e.key.startsWith(STORAGE_KEY)) {
+        pullFromCloud();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // Re-sync when user tabs back or focuses browser window
+    const handleFocus = () => {
+      pullFromCloud();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Periodic gentle background poll (every 12 seconds)
+    const pollTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        pullFromCloud();
+      }
+    }, 12000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(pollTimer);
+    };
   }, [pullFromCloud]);
 
   // Derived: Active students & faculty

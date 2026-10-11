@@ -32,7 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
     { id: 'gradebook', label: 'Gradebook Sheet', icon: <Table className="w-4 h-4" /> },
     { id: 'attendance', label: 'Attendance Roll', icon: <CalendarCheck className="w-4 h-4" /> },
     { id: 'students', label: 'Student Directory', icon: <Users2 className="w-4 h-4" /> },
-    { id: 'faculty', label: isDean ? 'Faculty Management' : 'Faculty Directory', icon: <UserCog className="w-4 h-4" /> },
+    ...(isDean ? [{ id: 'faculty', label: 'Faculty Management', icon: <UserCog className="w-4 h-4" /> }] : []),
   ];
 
   const studentItems = [

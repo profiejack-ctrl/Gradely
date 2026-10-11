@@ -27,7 +27,7 @@ import { ForcePasswordChangeModal } from './components/auth/ForcePasswordChangeM
 import { GradingPeriod } from './types';
 
 const MainLayout: React.FC = () => {
-  const { currentUser, isTeacher, isLoading } = useAuth();
+  const { currentUser, isTeacher, isDean, isLoading } = useAuth();
   const { sections, addSection, addSubject } = useData();
 
   // Navigation State
@@ -40,6 +40,13 @@ const MainLayout: React.FC = () => {
       setCurrentTab(isTeacher ? 'dashboard' : 'student-dashboard');
     }
   }, [currentUser?.id, currentUser?.role, isTeacher]);
+
+  // Protect faculty administration tab: only Deans can view it
+  React.useEffect(() => {
+    if (!isDean && currentTab === 'faculty') {
+      setCurrentTab('dashboard');
+    }
+  }, [isDean, currentTab]);
 
   // Deep link arguments
   const [navSectionId, setNavSectionId] = useState<string | undefined>(undefined);
@@ -194,7 +201,7 @@ const MainLayout: React.FC = () => {
             />
           )}
 
-          {isTeacher && currentTab === 'faculty' && (
+          {isDean && currentTab === 'faculty' && (
             <FacultyManager
               onNavigateToSubjects={() => setCurrentTab('subjects')}
               onShowToast={showToast}
