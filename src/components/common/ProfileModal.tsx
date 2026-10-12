@@ -54,8 +54,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   // Password change state
   const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -78,8 +80,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       setTitle(currentUser.title || '');
       setDepartment(currentUser.department || '');
       setShowPasswordSection(false);
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setShowCurrentPassword(false);
+      setShowPassword(false);
+      setShowConfirmPassword(false);
       setErrorMessage(null);
       setShowCustomUrlInput(false);
       setCustomUrl('');
@@ -173,8 +179,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const isPasswordValid =
     !showPasswordSection ||
-    (!newPassword && !confirmPassword) ||
-    (newPassword.length >= 6 && newPassword === confirmPassword);
+    (!newPassword && !confirmPassword && !currentPassword) ||
+    (currentPassword.trim().length > 0 &&
+      newPassword.length >= 6 &&
+      newPassword === confirmPassword &&
+      newPassword !== currentPassword);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,13 +199,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       return;
     }
 
-    if (showPasswordSection && newPassword) {
+    if (showPasswordSection && (newPassword || currentPassword || confirmPassword)) {
+      if (!currentPassword.trim()) {
+        setErrorMessage('Current password is required to change your password.');
+        return;
+      }
       if (newPassword.length < 6) {
         setErrorMessage('New password must be at least 6 characters long.');
         return;
       }
       if (newPassword !== confirmPassword) {
-        setErrorMessage('Passwords do not match.');
+        setErrorMessage('New password and confirm password do not match.');
+        return;
+      }
+      if (newPassword === currentPassword) {
+        setErrorMessage('New password cannot be identical to your current password.');
         return;
       }
     }
@@ -210,7 +227,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         title: isTeacher ? title.trim() : undefined,
         department: isTeacher ? department.trim() : undefined,
       },
-      showPasswordSection && newPassword ? newPassword : undefined
+      showPasswordSection && newPassword ? newPassword : undefined,
+      showPasswordSection && currentPassword ? currentPassword : undefined
     );
     setIsSubmitting(false);
 
@@ -543,8 +561,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     size="sm"
                     onClick={() => {
                       setShowPasswordSection(!showPasswordSection);
+                      setCurrentPassword('');
                       setNewPassword('');
                       setConfirmPassword('');
+                      setShowCurrentPassword(false);
+                      setShowPassword(false);
+                      setShowConfirmPassword(false);
+                      setErrorMessage(null);
                     }}
                     className="text-xs"
                   >
@@ -553,10 +576,40 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
 
                 {showPasswordSection && (
-                  <div className="p-4 rounded-2xl bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 space-y-3 animate-fade-in">
+                  <div className="p-4 rounded-2xl bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 space-y-3.5 animate-fade-in">
+                    {/* Current Password Field */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          Current Password <span className="text-rose-500">*</span>
+                        </label>
+                        <span className="text-[10px] text-slate-400">
+                          Verify identity
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                        <input
+                          type={showCurrentPassword ? 'text' : 'password'}
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          placeholder="Enter your existing password"
+                          className="w-full pl-10 pr-10 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#090e1a] text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-[#1E3A8A]/20 dark:focus:ring-blue-500/25 focus:border-[#1E3A8A] focus:outline-none transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                          className="absolute right-3 top-2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* New Password Field */}
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                        New Password
+                        New Password <span className="text-rose-500">*</span>
                       </label>
                       <div className="relative">
                         <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -577,9 +630,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       </div>
                     </div>
 
+                    {/* Confirm New Password Field */}
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                        Confirm New Password
+                        Confirm New Password <span className="text-rose-500">*</span>
                       </label>
                       <div className="relative">
                         <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -587,7 +641,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           type={showConfirmPassword ? 'text' : 'password'}
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Confirm new password"
+                          placeholder="Re-enter your new password"
                           className="w-full pl-10 pr-10 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#090e1a] text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-[#1E3A8A]/20 dark:focus:ring-blue-500/25 focus:border-[#1E3A8A] focus:outline-none transition-all"
                         />
                         <button
@@ -600,16 +654,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       </div>
                     </div>
 
-                    {newPassword && (
+                    {/* Validation Checklist */}
+                    {(currentPassword || newPassword || confirmPassword) && (
                       <div className="p-2.5 rounded-xl bg-white/70 dark:bg-[#090e1a]/70 border border-slate-200/50 dark:border-slate-700/50 space-y-1 text-[11px]">
+                        <div className={`flex items-center gap-1.5 ${currentPassword.trim().length > 0 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-400'}`}>
+                          {currentPassword.trim().length > 0 ? <Check className="w-3.5 h-3.5" /> : <div className="w-3 h-3 rounded-full border border-slate-300" />}
+                          <span>Current password entered</span>
+                        </div>
                         <div className={`flex items-center gap-1.5 ${newPassword.length >= 6 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-400'}`}>
                           {newPassword.length >= 6 ? <Check className="w-3.5 h-3.5" /> : <div className="w-3 h-3 rounded-full border border-slate-300" />}
-                          <span>At least 6 characters</span>
+                          <span>New password has at least 6 characters</span>
                         </div>
                         <div className={`flex items-center gap-1.5 ${newPassword === confirmPassword && confirmPassword ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-400'}`}>
                           {newPassword === confirmPassword && confirmPassword ? <Check className="w-3.5 h-3.5" /> : <div className="w-3 h-3 rounded-full border border-slate-300" />}
-                          <span>Passwords match</span>
+                          <span>New password and confirm password match</span>
                         </div>
+                        {newPassword && currentPassword && newPassword === currentPassword && (
+                          <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium pt-0.5">
+                            <span>New password cannot be identical to current password</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

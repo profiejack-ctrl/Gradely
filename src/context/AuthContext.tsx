@@ -34,7 +34,8 @@ interface AuthContextType {
   signUp: (params: SignUpParams) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   updateStudentPassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
-  updateProfile: (data: Partial<User>, newPassword?: string) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (data: Partial<User>, newPassword?: string, currentPassword?: string) => Promise<{ success: boolean; error?: string }>;
+  verifyCurrentPassword: (candidatePassword: string) => Promise<boolean>;
   quickLogin: (userOrId: User | string) => void;
   switchUser: (user: User) => void;
   refreshUsers: () => void;
@@ -305,17 +306,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
+   * Verify candidate password against current user credentials
+   */
+  const verifyCurrentPassword = async (candidatePassword: string): Promise<boolean> => {
+    if (!currentUser) return false;
+    const cleanCand = (candidatePassword || '').trim();
+    if (!cleanCand) return false;
+
+    // 1. Direct match with in-memory customPassword
+    if (currentUser.customPassword && cleanCand === currentUser.customPassword) {
+      return true;
+    }
+
+    // 2. Direct match with authVault stored credential
+    const cred =
+      authVault.getCredential(currentUser.id) ||
+      (currentUser.email ? authVault.getCredential(currentUser.email) : null) ||
+      (currentUser.studentNumber ? authVault.getCredential(currentUser.studentNumber) : null);
+
+    if (cred?.customPassword && cleanCand === cred.customPassword) {
+      return true;
+    }
+
+    // 3. Fallback to default initial credentials if user has not set a custom password yet
+    if (!currentUser.customPassword && !cred?.customPassword) {
+      if (currentUser.role === 'student') {
+        if (
+          cleanCand === currentUser.studentNumber ||
+          cleanCand === 'student123' ||
+          cleanCand === 'password'
+        ) {
+          return true;
+        }
+      } else {
+        if (
+          cleanCand === 'teacher123' ||
+          cleanCand === 'admin123' ||
+          cleanCand === 'admin' ||
+          cleanCand === 'password' ||
+          cleanCand === 'faculty123' ||
+          cleanCand === currentUser.email ||
+          cleanCand.toLowerCase() === currentUser.name.toLowerCase()
+        ) {
+          return true;
+        }
+      }
+    }
+
+    // 4. Fallback to Supabase Auth direct sign in if online and user has email
+    if (isSupabaseConfigured && supabase && currentUser.email) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: currentUser.email,
+          password: cleanCand,
+        });
+        if (!error && data?.user) {
+          return true;
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+
+    return false;
+  };
+
+  /**
    * Update User Profile (Faculty or Student)
    */
   const updateProfile = async (
     data: Partial<User>,
-    newPassword?: string
+    newPassword?: string,
+    currentPassword?: string
   ): Promise<{ success: boolean; error?: string }> => {
     if (!currentUser) return { success: false, error: 'No user is currently signed in.' };
 
     const cleanPass = newPassword ? newPassword.trim() : undefined;
-    if (cleanPass && cleanPass.length < 6) {
-      return { success: false, error: 'Password must be at least 6 characters long.' };
+    if (cleanPass) {
+      if (cleanPass.length < 6) {
+        return { success: false, error: 'New password must be at least 6 characters long.' };
+      }
+
+      if (!currentPassword || !currentPassword.trim()) {
+        return { success: false, error: 'Current password is required to change password.' };
+      }
+
+      const isCurrentCorrect = await verifyCurrentPassword(currentPassword);
+      if (!isCurrentCorrect) {
+        return { success: false, error: 'Incorrect current password. Please re-enter your current password.' };
+      }
+
+      if (cleanPass === currentPassword.trim()) {
+        return { success: false, error: 'New password cannot be the same as your current password.' };
+      }
     }
 
     const finalPass = cleanPass || currentUser.customPassword;
@@ -815,6 +898,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut,
         updateStudentPassword,
         updateProfile,
+        verifyCurrentPassword,
         quickLogin,
         switchUser,
         refreshUsers,
