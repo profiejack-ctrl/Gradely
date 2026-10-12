@@ -4,6 +4,7 @@ import { DataProvider, useData } from './context/DataContext';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { StudentBottomNav } from './components/layout/StudentBottomNav';
+import { TeacherBottomNav } from './components/layout/TeacherBottomNav';
 import { Toast, ToastMessage } from './components/common/Toast';
 
 // Teacher Views
@@ -130,7 +131,7 @@ const MainLayout: React.FC = () => {
         <Sidebar currentTab={currentTab} onSelectTab={(tab) => setCurrentTab(tab)} />
 
         {/* Dynamic View Area */}
-        <main className={`flex-1 min-w-0 ${!isTeacher ? 'pb-20 md:pb-0' : ''}`}>
+        <main className="flex-1 min-w-0 pb-24 md:pb-0">
           {/* Teacher Views */}
           {isTeacher && currentTab === 'dashboard' && (
             <TeacherDashboard
@@ -260,6 +261,16 @@ const MainLayout: React.FC = () => {
 
       {/* Mandatory First-Time Student Password Change Modal */}
       <ForcePasswordChangeModal onShowToast={showToast} />
+
+      {/* Mobile Bottom Navigation for Teachers & Deans */}
+      {isTeacher && (
+        <TeacherBottomNav
+          currentTab={currentTab}
+          onSelectTab={(tab) => setCurrentTab(tab)}
+          onOpenSectionModal={() => setIsSectionModalOpen(true)}
+          onOpenSubjectModal={() => setIsSubjectModalOpen(true)}
+        />
+      )}
 
       {/* Mobile Bottom Navigation for Students */}
       {!isTeacher && (

@@ -82,33 +82,43 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Welcome Banner */}
-      <div className="bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-5 sm:p-6 lg:p-7 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5 shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
-        <div className="space-y-1.5 max-w-xl">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#1E3A8A] dark:text-blue-400">
-              {isDean ? 'Dean Administration' : 'Instructor Dashboard'}
-            </span>
-            <NeuBadge variant="primary" size="sm">
-              {currentAcademicYear} • {currentSemester}
-            </NeuBadge>
+      <div className="bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-4 sm:p-6 lg:p-7 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 sm:gap-5 shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+        <div className="flex items-center gap-3.5 sm:gap-4 min-w-0 w-full xl:w-auto">
+          {currentUser?.avatar && (
+            <img
+              src={currentUser.avatar}
+              alt={currentUser.name}
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover ring-2 ring-[#1E3A8A]/20 dark:ring-blue-500/20 shadow-xs shrink-0"
+            />
+          )}
+          <div className="space-y-1 min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-[#1E3A8A] dark:text-blue-400">
+                {isDean ? 'Dean Administration' : 'Faculty Portal'}
+              </span>
+              <NeuBadge variant="primary" size="sm">
+                {currentAcademicYear} • {currentSemester}
+              </NeuBadge>
+            </div>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight truncate">
+              Welcome, {currentUser?.name}
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+              Manage sections, customize grading matrices, record attendance, and monitor real-time class standing.
+            </p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight">
-            Welcome back, {currentUser?.name}
-          </h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-            Manage your classroom sections, customize grading matrices per course, record attendance, and monitor student academic performance.
-          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full xl:w-auto shrink-0 pt-1 xl:pt-0">
           {isDean && (
             <NeuButton
               variant="secondary"
               size="md"
               onClick={() => onNavigate('faculty')}
               leftIcon={<Users className="w-4 h-4 text-slate-600 dark:text-slate-300" />}
+              className="col-span-2 sm:col-span-1 justify-center text-xs sm:text-sm"
             >
-              Manage Faculty ({teachers.length})
+              Faculty ({teachers.length})
             </NeuButton>
           )}
           <NeuButton
@@ -116,6 +126,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             size="md"
             onClick={onOpenSectionModal}
             leftIcon={<Plus className="w-4 h-4 text-slate-600 dark:text-slate-300" />}
+            className="justify-center text-xs sm:text-sm"
           >
             New Class
           </NeuButton>
@@ -124,74 +135,87 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             size="md"
             onClick={onOpenSubjectModal}
             leftIcon={<Plus className="w-4 h-4 text-white" />}
+            className="justify-center text-xs sm:text-sm"
           >
             New Course
           </NeuButton>
         </div>
       </div>
 
-      {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <NeuCard className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#1E3A8A] dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 flex items-center justify-center shrink-0">
-            <Layers className="w-5 h-5" />
+      {/* Metric Cards Grid - 2x2 on mobile, 4-col on desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <NeuCard className="p-3.5 sm:p-4 flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#1E3A8A] dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 flex items-center justify-center shrink-0">
+            <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">
+          <div className="min-w-0">
+            <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">
               {accessibleSections.length}
             </div>
-            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              {isDean && deanViewAll ? 'Total College Classes' : 'My Assigned Classes'}
+            <div className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+              {isDean && deanViewAll ? 'Total Classes' : 'My Classes'}
             </div>
           </div>
         </NeuCard>
 
-        <NeuCard className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 flex items-center justify-center shrink-0">
-            <BookOpen className="w-5 h-5" />
+        <NeuCard className="p-3.5 sm:p-4 flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 flex items-center justify-center shrink-0">
+            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{accessibleSubjects.length}</div>
-            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Active Courses</div>
-          </div>
-        </NeuCard>
-
-        <NeuCard className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-900/50 flex items-center justify-center shrink-0">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{enrolledStudentCount}</div>
-            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Enrolled Students</div>
+          <div className="min-w-0">
+            <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">
+              {accessibleSubjects.length}
+            </div>
+            <div className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+              Active Courses
+            </div>
           </div>
         </NeuCard>
 
-        <NeuCard className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/50 flex items-center justify-center shrink-0">
-            <Award className="w-5 h-5" />
+        <NeuCard className="p-3.5 sm:p-4 flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-900/50 flex items-center justify-center shrink-0">
+            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <div className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">{overallAvgGrade}%</div>
-            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Class Average Grade</div>
+          <div className="min-w-0">
+            <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">
+              {enrolledStudentCount}
+            </div>
+            <div className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+              Students
+            </div>
+          </div>
+        </NeuCard>
+
+        <NeuCard className="p-3.5 sm:p-4 flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/50 flex items-center justify-center shrink-0">
+            <Award className="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">
+              {overallAvgGrade}%
+            </div>
+            <div className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+              Class Average
+            </div>
           </div>
         </NeuCard>
       </div>
 
       {/* Quick Launchers */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
         <div
           onClick={() => onNavigate('gradebook')}
-          className="p-4 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-[#1E3A8A]/40 dark:hover:border-blue-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
+          className="p-3.5 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-[#1E3A8A]/40 dark:hover:border-blue-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-2.5 sm:gap-3 group active:scale-[0.99]"
         >
           <div className="flex items-center justify-between">
-            <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950 text-[#1E3A8A] dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">
-              <Table className="w-5 h-5" />
+            <div className="p-2 sm:p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950 text-[#1E3A8A] dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">
+              <Table className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#1E3A8A] dark:group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">Open Gradebook</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Open Gradebook</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
               Multi-column spreadsheet for Quizzes, Activities, Projects & Exams.
             </p>
           </div>
@@ -199,17 +223,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
         <div
           onClick={() => onNavigate('attendance')}
-          className="p-4 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/40 dark:hover:border-emerald-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
+          className="p-3.5 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/40 dark:hover:border-emerald-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-2.5 sm:gap-3 group active:scale-[0.99]"
         >
           <div className="flex items-center justify-between">
-            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50">
-              <CalendarCheck className="w-5 h-5" />
+            <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50">
+              <CalendarCheck className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">Take Daily Attendance</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Take Daily Attendance</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
               Roll call with Present, Late, Absent, or Excused status tracking.
             </p>
           </div>
@@ -217,17 +241,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
         <div
           onClick={() => onNavigate('subjects')}
-          className="p-4 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-orange-500/40 dark:hover:border-orange-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
+          className="p-3.5 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-orange-500/40 dark:hover:border-orange-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-2.5 sm:gap-3 group active:scale-[0.99]"
         >
           <div className="flex items-center justify-between">
-            <div className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950 text-[#F97316] dark:text-orange-400 border border-orange-100 dark:border-orange-900/50">
-              <Sliders className="w-5 h-5" />
+            <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950 text-[#F97316] dark:text-orange-400 border border-orange-100 dark:border-orange-900/50">
+              <Sliders className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#F97316] dark:group-hover:text-orange-400 group-hover:translate-x-1 transition-all" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">Grading Matrices</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Grading Matrices</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
               Customize percentage weights per course with real-time 100% validation.
             </p>
           </div>
@@ -238,19 +262,27 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Classes & Subjects */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-0.5">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span>Classes & Active Courses</span>
-            </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-0.5">
+            <div className="flex items-center justify-between w-full sm:w-auto">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>Classes & Active Courses</span>
+              </h2>
+              <button
+                onClick={() => onNavigate('sections')}
+                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline sm:hidden"
+              >
+                {isDean ? 'All Classes →' : 'Manage →'}
+              </button>
+            </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               {/* Dean Oversight Switcher */}
               {isDean && (
-                <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs">
+                <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs w-full sm:w-auto">
                   <button
                     onClick={() => setDeanViewAll(true)}
-                    className={`px-2 py-0.5 rounded-lg font-semibold transition-all ${
+                    className={`flex-1 sm:flex-initial px-2.5 py-1 rounded-lg font-semibold transition-all text-center ${
                       deanViewAll
                         ? 'bg-white dark:bg-[#0d1424] text-[#1E3A8A] dark:text-blue-400 shadow-2xs'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -260,7 +292,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   </button>
                   <button
                     onClick={() => setDeanViewAll(false)}
-                    className={`px-2 py-0.5 rounded-lg font-semibold transition-all ${
+                    className={`flex-1 sm:flex-initial px-2.5 py-1 rounded-lg font-semibold transition-all text-center ${
                       !deanViewAll
                         ? 'bg-white dark:bg-[#0d1424] text-[#1E3A8A] dark:text-blue-400 shadow-2xs'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -273,7 +305,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
               <button
                 onClick={() => onNavigate('sections')}
-                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline hidden sm:inline"
               >
                 {isDean ? 'View All Classes →' : 'Manage Classes →'}
               </button>

@@ -46,9 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
 
   return (
     <aside
-      className={`w-full md:w-52 lg:w-60 shrink-0 flex flex-col gap-1.5 md:sticky md:top-20 md:self-start z-30 ${
-        !isTeacher ? 'hidden md:flex' : ''
-      }`}
+      className="hidden md:flex w-full md:w-52 lg:w-60 shrink-0 flex-col gap-1.5 md:sticky md:top-20 md:self-start z-30"
     >
       <div className="bg-white/90 dark:bg-[#0d1424]/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-2 md:p-2.5 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-visible shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
         <div className="hidden md:flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
