@@ -4,14 +4,21 @@ import { useData } from '../../context/DataContext';
 import { NeuCard } from '../common/NeuCard';
 import { NeuBadge } from '../common/NeuBadge';
 import { calculateStudentSubjectPerformance } from '../../utils/gradeCalculator';
+import { getStudentEnrolledSubjects } from '../../utils/enrollmentUtils';
 import { PieChart, Sparkles } from 'lucide-react';
 
 export const MatrixBreakdownView: React.FC = () => {
   const { currentUser } = useAuth();
-  const { subjects, assessments, scores, attendance } = useData();
+  const { allUsers, subjects, assessments, scores, attendance } = useData();
 
-  const student = currentUser;
-  const enrolledSubjects = subjects.filter((s) => s.sectionId === student?.sectionId);
+  const student = (currentUser ? allUsers.find((u) => u.id === currentUser.id) : null) || currentUser;
+  const enrolledSubjects = getStudentEnrolledSubjects(
+    student,
+    subjects,
+    assessments,
+    scores,
+    attendance
+  );
 
   return (
     <div className="space-y-5 animate-fade-in">

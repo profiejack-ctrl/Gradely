@@ -7,6 +7,7 @@ import { NeuButton } from '../common/NeuButton';
 import { NeuBadge } from '../common/NeuBadge';
 import { NeuCircularGauge } from '../common/NeuProgress';
 import { calculateStudentSubjectPerformance, convertToGPA } from '../../utils/gradeCalculator';
+import { getStudentEnrolledSubjects } from '../../utils/enrollmentUtils';
 import { Calculator, Sparkles, RefreshCw, ArrowLeft, Target } from 'lucide-react';
 
 interface GradeSimulatorProps {
@@ -21,14 +22,28 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
   onBack,
 }) => {
   const { currentUser } = useAuth();
-  const { subjects, assessments, scores, attendance } = useData();
+  const { allUsers, subjects, assessments, scores, attendance } = useData();
 
-  const student = currentUser;
-  const enrolledSubjects = subjects.filter((s) => s.sectionId === student?.sectionId);
+  const student = (currentUser ? allUsers.find((u) => u.id === currentUser.id) : null) || currentUser;
+  const enrolledSubjects = getStudentEnrolledSubjects(
+    student,
+    subjects,
+    assessments,
+    scores,
+    attendance
+  );
 
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
     initialSubjectId || enrolledSubjects[0]?.id || ''
   );
+
+  useEffect(() => {
+    if (initialSubjectId && enrolledSubjects.some((s) => s.id === initialSubjectId)) {
+      setSelectedSubjectId(initialSubjectId);
+    } else if (enrolledSubjects.length > 0 && !enrolledSubjects.some((s) => s.id === selectedSubjectId)) {
+      setSelectedSubjectId(enrolledSubjects[0].id);
+    }
+  }, [initialSubjectId, enrolledSubjects, selectedSubjectId]);
 
   const [simulationMode, setSimulationMode] = useState<SimulationMode>('periods');
 
@@ -247,8 +262,10 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
             </div>
 
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs">
-              <span className="text-slate-500">Projected GPA:</span>
-              <span className="font-bold text-indigo-600 dark:text-indigo-400">{simulatedGPA.toFixed(2)}</span>
+              <span className="text-slate-500">Projected Grade Equiv:</span>
+              <span className={`font-mono font-bold ${simulatedGPA <= 3.0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400 font-extrabold'}`}>
+                {simulatedGPA.toFixed(2)}
+              </span>
             </div>
           </div>
 

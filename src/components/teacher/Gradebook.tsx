@@ -566,8 +566,9 @@ export const Gradebook: React.FC<GradebookProps> = ({
                     <th className="p-3 text-center font-bold bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 min-w-[110px] border-r border-slate-200 dark:border-slate-800">
                       Semestral Grade
                     </th>
-                    <th className="p-3 text-center font-bold min-w-[70px] border-r border-slate-200 dark:border-slate-800">
-                      GPA
+                    <th className="p-3 text-center font-bold min-w-[85px] border-r border-slate-200 dark:border-slate-800">
+                      <div>Grade Equiv.</div>
+                      <div className="text-[10px] text-slate-400 font-normal">1.00 - 5.00</div>
                     </th>
                     <th className="p-3 text-center font-bold min-w-[90px]">
                       Final Status
@@ -669,9 +670,17 @@ export const Gradebook: React.FC<GradebookProps> = ({
                             </span>
                           </td>
 
-                          {/* GPA */}
-                          <td className="p-3 text-center font-mono font-bold text-xs text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-800">
-                            {perf.gpa.toFixed(2)}
+                          {/* Grade Equivalent */}
+                          <td className="p-3 text-center font-mono font-bold text-xs border-r border-slate-200 dark:border-slate-800">
+                            <span
+                              className={
+                                perf.gpa <= 3.0
+                                  ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+                                  : 'text-rose-600 dark:text-rose-400 font-extrabold'
+                              }
+                            >
+                              {perf.gpa.toFixed(2)}
+                            </span>
                           </td>
 
                           {/* Remarks */}

@@ -11,7 +11,7 @@ import {
   calculateStudentSubjectPerformance,
   calculateAttendanceStats,
 } from '../../utils/gradeCalculator';
-import { getStudentSectionIds } from '../../utils/enrollmentUtils';
+import { getStudentEnrolledSubjects } from '../../utils/enrollmentUtils';
 import {
   CalendarCheck,
   CheckCircle2,
@@ -39,15 +39,29 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
   onOpenSimulator,
 }) => {
   const { currentUser } = useAuth();
-  const { subjects, assessments, scores, attendance } = useData();
+  const { allUsers, subjects, assessments, scores, attendance } = useData();
 
-  const student = currentUser;
-  const enrolledSecIds = getStudentSectionIds(student);
-  const enrolledSubjects = subjects.filter((s) => enrolledSecIds.includes(s.sectionId));
+  // Authoritatively resolve student from DataContext, falling back to currentUser
+  const student = (currentUser ? allUsers.find((u) => u.id === currentUser.id) : null) || currentUser;
+  const enrolledSubjects = getStudentEnrolledSubjects(
+    student,
+    subjects,
+    assessments,
+    scores,
+    attendance
+  );
 
   const [activeSubjectId, setActiveSubjectId] = useState<string>(
     selectedSubjectId || enrolledSubjects[0]?.id || ''
   );
+
+  React.useEffect(() => {
+    if (selectedSubjectId && enrolledSubjects.some((s) => s.id === selectedSubjectId)) {
+      setActiveSubjectId(selectedSubjectId);
+    } else if (enrolledSubjects.length > 0 && !enrolledSubjects.some((s) => s.id === activeSubjectId)) {
+      setActiveSubjectId(enrolledSubjects[0].id);
+    }
+  }, [selectedSubjectId, enrolledSubjects, activeSubjectId]);
 
   const [activePeriod, setActivePeriod] = useState<PeriodTabMode>('all-semestral');
   const [activeRecordType, setActiveRecordType] = useState<RecordTypeTab>('all');
@@ -326,7 +340,9 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
                 : 'Below Passing'}
             </NeuBadge>
             {activePeriod === 'all-semestral' && (
-              <NeuBadge variant="primary">GPA: {perf.gpa.toFixed(2)}</NeuBadge>
+              <NeuBadge variant={perf.isPassing ? 'primary' : 'danger'}>
+                Grade Equiv: {perf.gpa.toFixed(2)}
+              </NeuBadge>
             )}
           </div>
         </NeuCard>

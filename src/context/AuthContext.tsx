@@ -4,7 +4,7 @@ import { INITIAL_USERS } from '../data/initialData';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { syncEngine } from '../services/syncEngine';
 import { authVault, StoredCredential, CREDENTIALS_STORAGE_KEY } from '../services/authVault';
-import { formatSectionIds } from '../utils/enrollmentUtils';
+import { formatSectionIds, parseSectionIds } from '../utils/enrollmentUtils';
 
 export { CREDENTIALS_STORAGE_KEY };
 export type { StoredCredential };
@@ -117,6 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 (profile.email ? getStoredCredential(profile.email) : null) ||
                 (profile.student_number ? getStoredCredential(profile.student_number) : null);
 
+              const secIds = parseSectionIds(profile.section_id);
               const matchedUser: User = {
                 id: profile.id,
                 name: profile.name,
@@ -124,7 +125,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 role: profile.role,
                 avatar: profile.avatar || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
                 studentNumber: profile.student_number || undefined,
-                sectionId: profile.section_id || undefined,
+                sectionId: secIds[0] || undefined,
+                sectionIds: secIds,
                 department: profile.department || undefined,
                 title: profile.title || undefined,
                 customPassword: cred?.customPassword,
@@ -164,6 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               (profile.email ? getStoredCredential(profile.email) : null) ||
               (profile.student_number ? getStoredCredential(profile.student_number) : null);
 
+            const secIds = parseSectionIds(profile.section_id);
             setCurrentUser({
               id: profile.id,
               name: profile.name,
@@ -171,7 +174,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               role: profile.role,
               avatar: profile.avatar || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
               studentNumber: profile.student_number || undefined,
-              sectionId: profile.section_id || undefined,
+              sectionId: secIds[0] || undefined,
+              sectionIds: secIds,
               department: profile.department || undefined,
               title: profile.title || undefined,
               customPassword: cred?.customPassword,
@@ -197,6 +201,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem(CURRENT_USER_KEY);
     }
   }, [currentUser]);
+
+  // Keep currentUser in sync when user data is updated (e.g. multi-class enrollment modified)
+  useEffect(() => {
+    if (!currentUser) return;
+    const freshUser = users.find((u) => u.id === currentUser.id);
+    if (freshUser) {
+      const freshSecIds = freshUser.sectionIds || (freshUser.sectionId ? parseSectionIds(freshUser.sectionId) : []);
+      const curSecIds = currentUser.sectionIds || (currentUser.sectionId ? parseSectionIds(currentUser.sectionId) : []);
+      if (
+        freshSecIds.join(',') !== curSecIds.join(',') ||
+        freshUser.name !== currentUser.name ||
+        freshUser.avatar !== currentUser.avatar ||
+        freshUser.studentNumber !== currentUser.studentNumber
+      ) {
+        const merged: User = {
+          ...currentUser,
+          ...freshUser,
+          sectionId: freshSecIds[0] || freshUser.sectionId,
+          sectionIds: freshSecIds,
+        };
+        setCurrentUser(merged);
+        try {
+          localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(merged));
+        } catch (e) {}
+      }
+    }
+  }, [users, currentUser?.id]);
 
   // Theme synchronization
   useEffect(() => {
@@ -316,13 +347,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // 3. Enqueue to Supabase table
+    const finalSecIds = updatedUser.sectionIds || (updatedUser.sectionId ? parseSectionIds(updatedUser.sectionId) : []);
     syncEngine.enqueue('users', 'UPSERT', {
       id: updatedUser.id,
       name: updatedUser.name,
       email: updatedUser.email,
       role: updatedUser.role,
       student_number: updatedUser.studentNumber || null,
-      section_id: updatedUser.sectionId || null,
+      section_id: formatSectionIds(finalSecIds),
       avatar: updatedUser.avatar || null,
       department: updatedUser.department || null,
       title: updatedUser.title || null,
@@ -444,6 +476,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             (cloudProfile.student_number ? authVault.getCredential(cloudProfile.student_number) : null) ||
             embeddedCred;
 
+          const secIds = parseSectionIds(cloudProfile.section_id);
           const mappedCloudUser: User = {
             id: cloudProfile.id,
             name: cloudProfile.name,
@@ -453,7 +486,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               cloudProfile.avatar ||
               `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cloudProfile.name)}`,
             studentNumber: cloudProfile.student_number || undefined,
-            sectionId: cloudProfile.section_id || undefined,
+            sectionId: secIds[0] || undefined,
+            sectionIds: secIds,
             department: (embeddedCred && cloudProfile.role === 'student') ? undefined : cloudProfile.department || undefined,
             title: cloudProfile.title || undefined,
             mustChangePassword:

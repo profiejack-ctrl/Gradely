@@ -270,19 +270,37 @@ export function calculateCategorySummary(
 }
 
 /**
- * Converts percentage grade to standard GPA
+ * Converts percentage grade (0-100) to Philippine Collegiate Grade Point Equivalent (1.00 - 5.00 scale)
+ * Institutional nested formula:
+ * =IF([@Column33]>=98,1,IF([@Column33]>=95,1.25,IF([@Column33]>=92,1.5,IF([@Column33]>=89,1.75,IF([@Column33]>=86,2,IF([@Column33]>=83,2.25,IF([@Column33]>=80,2.5,IF([@Column33]>=77,2.75,IF([@Column33]>=75,3,5)))))))))
  */
 export function convertToGPA(grade: number): number {
-  if (grade >= 96) return 4.0;
-  if (grade >= 93) return 3.75;
-  if (grade >= 90) return 3.5;
-  if (grade >= 87) return 3.25;
-  if (grade >= 84) return 3.0;
-  if (grade >= 81) return 2.75;
-  if (grade >= 78) return 2.5;
-  if (grade >= 75) return 2.0;
-  if (grade >= 70) return 1.5;
-  return 0.0;
+  if (grade >= 98) return 1.0;
+  if (grade >= 95) return 1.25;
+  if (grade >= 92) return 1.5;
+  if (grade >= 89) return 1.75;
+  if (grade >= 86) return 2.0;
+  if (grade >= 83) return 2.25;
+  if (grade >= 80) return 2.5;
+  if (grade >= 77) return 2.75;
+  if (grade >= 75) return 3.0;
+  return 5.0;
+}
+
+/**
+ * Returns descriptive qualitative evaluation corresponding to 1.00 - 5.00 grade point
+ */
+export function getGradePointDescription(gradePoint: number): string {
+  if (gradePoint <= 1.0) return 'Excellent';
+  if (gradePoint <= 1.25) return 'Superior';
+  if (gradePoint <= 1.5) return 'Very Good';
+  if (gradePoint <= 1.75) return 'Good';
+  if (gradePoint <= 2.0) return 'Very Satisfactory';
+  if (gradePoint <= 2.25) return 'Satisfactory';
+  if (gradePoint <= 2.5) return 'Fairly Satisfactory';
+  if (gradePoint <= 2.75) return 'Fair';
+  if (gradePoint <= 3.0) return 'Passing';
+  return 'Failed';
 }
 
 /**

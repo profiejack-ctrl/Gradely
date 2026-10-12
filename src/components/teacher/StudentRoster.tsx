@@ -10,7 +10,7 @@ import { StudentModal } from './StudentModal';
 import { BulkStudentUploadModal } from './BulkStudentUploadModal';
 import { calculateStudentSubjectPerformance } from '../../utils/gradeCalculator';
 import { compareByLastName, formatLastFirst } from '../../utils/nameUtils';
-import { isStudentInSection, getStudentSectionIds } from '../../utils/enrollmentUtils';
+import { isStudentInSection, getStudentSectionIds, getStudentEnrolledSubjects } from '../../utils/enrollmentUtils';
 import { Plus, Search, Edit2, Trash2, Mail, GraduationCap, Award, Upload, ArrowUpDown } from 'lucide-react';
 
 interface StudentRosterProps {
@@ -276,7 +276,7 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
           {sortedStudents.map((student) => {
           const enrolledSecIds = getStudentSectionIds(student);
           const studentSections = sections.filter((s) => enrolledSecIds.includes(s.id));
-          const studentSubjects = subjects.filter((s) => enrolledSecIds.includes(s.sectionId));
+          const studentSubjects = getStudentEnrolledSubjects(student, subjects, assessments, scores, attendance);
 
           // Calculate average grade across subjects
           let totalGrade = 0;

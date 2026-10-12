@@ -21,7 +21,7 @@ export function exportGradebookToCSV(
       'Midterm Grade (30%)',
       'Finals Grade (40%)',
       'Semestral Final Grade %',
-      'GPA',
+      'Grade Equivalent (1.00 - 5.00)',
       'Remarks',
     ];
 

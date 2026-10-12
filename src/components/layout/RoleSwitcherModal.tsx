@@ -5,6 +5,7 @@ import { NeuModal } from '../common/NeuModal';
 import { NeuBadge } from '../common/NeuBadge';
 import { GraduationCap, Users, Sparkles, Check } from 'lucide-react';
 import { User } from '../../types';
+import { getStudentSectionIds } from '../../utils/enrollmentUtils';
 
 interface RoleSwitcherModalProps {
   isOpen: boolean;
@@ -29,9 +30,13 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
     onClose();
   };
 
-  const getSectionName = (secId?: string) => {
-    if (!secId) return 'Unassigned';
-    return sections.find((s) => s.id === secId)?.name || secId;
+  const getSectionNames = (student: User) => {
+    const secIds = getStudentSectionIds(student);
+    if (secIds.length === 0) return 'Unassigned';
+    return secIds
+      .map((id) => sections.find((s) => s.id === id)?.name || id)
+      .filter(Boolean)
+      .join(', ');
   };
 
   return (
@@ -120,7 +125,7 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
                         {isSelected && <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 inline shrink-0" />}
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {student.studentNumber} • {getSectionName(student.sectionId)}
+                        {student.studentNumber} • {getSectionNames(student)}
                       </div>
                     </div>
                   </div>

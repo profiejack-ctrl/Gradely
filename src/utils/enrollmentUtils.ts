@@ -1,4 +1,4 @@
-import { User } from '../types';
+import { User, Subject, Assessment, ScoreRecord, AttendanceRecord } from '../types';
 
 /**
  * Encodes adviserId into section description without requiring database schema changes.
@@ -67,3 +67,56 @@ export function isStudentInSection(student?: User | null, sectionId?: string): b
   const enrolledIds = getStudentSectionIds(student);
   return enrolledIds.includes(sectionId);
 }
+
+/**
+ * Returns all subjects a student is enrolled in or actively participating in.
+ * Includes:
+ * 1. Subjects under any of the student's enrolled sections/cohorts (multi-class support)
+ * 2. Subjects where the student has recorded assessment scores
+ * 3. Subjects where the student has recorded attendance records
+ */
+export function getStudentEnrolledSubjects(
+  student?: User | null,
+  subjects: Subject[] = [],
+  assessments: Assessment[] = [],
+  scores: ScoreRecord[] = [],
+  attendance: AttendanceRecord[] = []
+): Subject[] {
+  if (!student) return [];
+  const enrolledSecIds = getStudentSectionIds(student);
+
+  // Subject IDs where student has recorded activity
+  const activeSubjectIds = new Set<string>();
+
+  if (student.id) {
+    if (assessments.length > 0 && scores.length > 0) {
+      const studentAssIds = new Set(
+        scores.filter((sc) => sc.studentId === student.id).map((sc) => sc.assessmentId)
+      );
+      assessments
+        .filter((ass) => studentAssIds.has(ass.id))
+        .forEach((ass) => activeSubjectIds.add(ass.subjectId));
+    }
+
+    if (attendance.length > 0) {
+      attendance
+        .filter((att) => att.studentId === student.id)
+        .forEach((att) => activeSubjectIds.add(att.subjectId));
+    }
+  }
+
+  // Deduplicate matched subjects
+  const matchedSubjectsMap = new Map<string, Subject>();
+
+  subjects.forEach((subj) => {
+    const isInEnrolledSection = enrolledSecIds.includes(subj.sectionId);
+    const hasActivity = activeSubjectIds.has(subj.id);
+
+    if (isInEnrolledSection || hasActivity) {
+      matchedSubjectsMap.set(subj.id, subj);
+    }
+  });
+
+  return Array.from(matchedSubjectsMap.values());
+}
+

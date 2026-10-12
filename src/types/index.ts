@@ -151,7 +151,7 @@ export interface StudentSubjectPerformance {
   categories: CategoryScoreSummary[];
   attendanceRate: number;    // %
   finalGrade: number;        // Computed semestral grade (30% Prelim + 30% Midterm + 40% Finals)
-  gpa: number;               // Converted GPA (e.g. 4.0 scale)
+  gpa: number;               // Converted Grade Point / GPA (1.00 - 5.00 collegiate scale)
   isPassing: boolean;
   remarks: 'Passed' | 'Failed' | 'Incomplete' | 'Honors';
   periods: Record<GradingPeriod, PeriodGradeSummary>;
