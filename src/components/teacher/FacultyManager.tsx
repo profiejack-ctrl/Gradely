@@ -33,7 +33,7 @@ export const FacultyManager: React.FC<FacultyManagerProps> = ({
   onNavigateToSubjects,
   onShowToast,
 }) => {
-  const { teachers, subjects, sections, addTeacher, updateTeacher, deleteTeacher } = useData();
+  const { teachers, subjects, sections, addTeacher, updateTeacher, deleteTeacher, resetUserPassword } = useData();
   const { currentUser, isDean } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -127,6 +127,30 @@ export const FacultyManager: React.FC<FacultyManagerProps> = ({
         onShowToast('Faculty Removed', `"${teacher.name}" has been removed.`, 'warning');
       } else {
         onShowToast('Error', 'Failed to delete faculty member.', 'error');
+      }
+    }
+  };
+
+  const handleResetPassword = async (teacher: User) => {
+    if (!isDean) {
+      onShowToast('Authorization Required', 'Only Deans and Department Chairs can reset faculty passwords.', 'error');
+      return;
+    }
+
+    if (
+      window.confirm(
+        `Reset password for "${teacher.name}" to the default initial password ("teacher123")?\n\nThey will be required to change their password upon their next login.`
+      )
+    ) {
+      const res = await resetUserPassword(teacher.id);
+      if (res.success) {
+        onShowToast(
+          'Faculty Password Reset',
+          `"${teacher.name}" password reset to "${res.initialPassword}". Required to change on next login.`,
+          'success'
+        );
+      } else {
+        onShowToast('Reset Failed', res.error || 'Failed to reset faculty password.', 'error');
       }
     }
   };
@@ -373,6 +397,13 @@ export const FacultyManager: React.FC<FacultyManagerProps> = ({
                   {/* Actions */}
                   {isDean && (
                     <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleResetPassword(teacher)}
+                        title="Reset Password to Initial (teacher123)"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                      >
+                        <KeyRound className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => handleOpenEdit(teacher)}
                         title="Edit Profile & Credentials"

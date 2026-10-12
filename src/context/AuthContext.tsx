@@ -639,8 +639,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // 5. Verify Student credentials
     if (userObj.role === 'student') {
-      // Student already set a custom password
-      if (userObj.customPassword) {
+      const initialPass = userObj.studentNumber ? userObj.studentNumber.trim() : 'student123';
+      const requiresChange = Boolean(userObj.mustChangePassword || storedCred?.mustChangePassword);
+
+      if (requiresChange) {
+        // Account requires initial setup or was reset by instructor
+        const isInitialPassMatch =
+          cleanPassword === initialPass ||
+          cleanPassword === 'student123' ||
+          (userObj.studentNumber && cleanPassword === userObj.studentNumber) ||
+          (userObj.customPassword && cleanPassword === userObj.customPassword);
+
+        if (isInitialPassMatch) {
+          // Keep mustChangePassword true so the mandatory change modal triggers upon login
+          userObj.mustChangePassword = true;
+        } else {
+          setIsLoading(false);
+          return {
+            success: false,
+            error: `Your password requires setup or was reset. Please sign in using your Student ID (${initialPass}) to proceed.`,
+          };
+        }
+      } else if (userObj.customPassword) {
+        // Standard login using active custom password
         if (cleanPassword === userObj.customPassword) {
           userObj.mustChangePassword = false;
         } else if (cleanPassword === userObj.studentNumber || cleanPassword === 'student123') {
@@ -677,7 +698,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsLoading(false);
           return {
             success: false,
-            error: `Invalid password. For first-time student login, use your Student ID (${userObj.studentNumber || 'Student ID'}) as your temporary password.`,
+            error: `Invalid password. For first-time student login, use your Student ID (${initialPass}) as your temporary password.`,
           };
         }
       }
@@ -686,10 +707,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 6. Verify Faculty / Teacher / Dean credentials
     if (userObj.role === 'teacher' || userObj.role === 'dean') {
       let isTeacherAuthSuccess = false;
+      const requiresChange = Boolean(userObj.mustChangePassword || storedCred?.mustChangePassword);
 
       // Check custom password if set
       if (userObj.customPassword && cleanPassword === userObj.customPassword) {
         isTeacherAuthSuccess = true;
+        if (requiresChange) {
+          userObj.mustChangePassword = true;
+        }
       }
 
       // Check Supabase Auth if online and password given
@@ -720,6 +745,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           cleanPassword.toLowerCase() === userObj.name.toLowerCase())
       ) {
         isTeacherAuthSuccess = true;
+        if (requiresChange) {
+          userObj.mustChangePassword = true;
+        }
       }
 
       if (!isTeacherAuthSuccess) {

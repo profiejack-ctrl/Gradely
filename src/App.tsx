@@ -138,6 +138,7 @@ const MainLayout: React.FC = () => {
               onNavigate={handleTeacherNavigate}
               onOpenSectionModal={() => setIsSectionModalOpen(true)}
               onOpenSubjectModal={() => setIsSubjectModalOpen(true)}
+              onShowToast={showToast}
             />
           )}
 

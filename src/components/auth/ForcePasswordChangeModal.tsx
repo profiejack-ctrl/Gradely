@@ -28,7 +28,7 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  if (!currentUser || currentUser.role !== 'student' || !currentUser.mustChangePassword) {
+  if (!currentUser || !currentUser.mustChangePassword) {
     return null;
   }
 
@@ -39,7 +39,8 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
   const isDifferentFromTemp =
     Boolean(newPassword) &&
     newPassword !== currentUser.studentNumber &&
-    newPassword.toLowerCase() !== 'student123';
+    newPassword.toLowerCase() !== 'student123' &&
+    newPassword.toLowerCase() !== 'teacher123';
 
   const isValid = isMinLength && isMatching && isDifferentFromTemp;
 
@@ -58,7 +59,11 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
     }
 
     if (!isDifferentFromTemp) {
-      setErrorMessage('Your new password cannot be the same as your temporary Student ID.');
+      setErrorMessage(
+        currentUser.role === 'student'
+          ? 'Your new password cannot be the same as your temporary Student ID or default password.'
+          : 'Your new password cannot be the same as the default initial password.'
+      );
       return;
     }
 
@@ -69,7 +74,7 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
     if (res.success) {
       onShowToast(
         'Password Updated Successfully!',
-        'Your custom password is now active. Welcome to your Student Portal!',
+        `Your custom password is now active. Welcome to your ${currentUser.role === 'student' ? 'Student Portal' : 'Faculty Portal'}!`,
         'success'
       );
     } else {

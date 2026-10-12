@@ -16,23 +16,28 @@ import {
   Sliders,
   ArrowRight,
   Sparkles,
+  KeyRound,
 } from 'lucide-react';
 import { calculateStudentSubjectPerformance } from '../../utils/gradeCalculator';
 import { isStudentInSection } from '../../utils/enrollmentUtils';
+import { ResetStudentPasswordModal } from './ResetStudentPasswordModal';
 
 interface TeacherDashboardProps {
   onNavigate: (tab: string, sectionId?: string, subjectId?: string) => void;
   onOpenSectionModal: () => void;
   onOpenSubjectModal: () => void;
+  onShowToast?: (title: string, message?: string, type?: 'success' | 'warning' | 'error' | 'info') => void;
 }
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   onNavigate,
   onOpenSectionModal,
   onOpenSubjectModal,
+  onShowToast,
 }) => {
   const { currentUser, isDean } = useAuth();
   const { sections, subjects, assessments, scores, attendance, students, teachers } = useData();
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
 
   // Dean oversight toggle: Deans can view all courses in the college or only their own courses
   const [deanViewAll, setDeanViewAll] = useState(isDean);
@@ -124,6 +129,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           <NeuButton
             variant="secondary"
             size="md"
+            onClick={() => setIsResetPasswordModalOpen(true)}
+            leftIcon={<KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
+            className="justify-center text-xs sm:text-sm border-amber-200/80 dark:border-amber-900/60 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+          >
+            Reset Password
+          </NeuButton>
+          <NeuButton
+            variant="secondary"
+            size="md"
             onClick={onOpenSectionModal}
             leftIcon={<Plus className="w-4 h-4 text-slate-600 dark:text-slate-300" />}
             className="justify-center text-xs sm:text-sm"
@@ -202,7 +216,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       </div>
 
       {/* Quick Launchers */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         <div
           onClick={() => onNavigate('gradebook')}
           className="p-3.5 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-[#1E3A8A]/40 dark:hover:border-blue-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-2.5 sm:gap-3 group active:scale-[0.99]"
@@ -253,6 +267,24 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Grading Matrices</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
               Customize percentage weights per course with real-time 100% validation.
+            </p>
+          </div>
+        </div>
+
+        <div
+          onClick={() => setIsResetPasswordModalOpen(true)}
+          className="p-3.5 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-amber-500/50 dark:hover:border-amber-500/50 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-2.5 sm:gap-3 group active:scale-[0.99]"
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/50">
+              <KeyRound className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 group-hover:translate-x-1 transition-all" />
+          </div>
+          <div>
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Reset Student Password</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
+              Revert forgotten credentials to Student ID with mandatory update on login.
             </p>
           </div>
         </div>
@@ -462,6 +494,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           </NeuCard>
         </div>
       </div>
+
+      <ResetStudentPasswordModal
+        isOpen={isResetPasswordModalOpen}
+        onClose={() => setIsResetPasswordModalOpen(false)}
+        onShowToast={onShowToast || (() => {})}
+      />
     </div>
   );
 };

@@ -99,6 +99,7 @@ interface DataContextType {
   bulkAddStudents: (students: Omit<User, 'id' | 'role'>[]) => User[];
   updateStudent: (id: string, data: Partial<User>) => void;
   deleteStudent: (id: string) => void;
+  resetUserPassword: (userId: string) => Promise<{ success: boolean; initialPassword: string; error?: string; user?: User }>;
 
   // Backup & Reset & Sync
   resetToDefault: () => void;
@@ -938,6 +939,60 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     syncEngine.enqueue('users', 'DELETE', { id });
   };
 
+  const resetUserPassword = async (
+    userId: string
+  ): Promise<{ success: boolean; initialPassword: string; error?: string; user?: User }> => {
+    const targetUser = allUsers.find((u) => u.id === userId);
+    if (!targetUser) {
+      return { success: false, initialPassword: '', error: 'User not found in system.' };
+    }
+
+    // Determine initial password based on role:
+    // Students: their studentNumber (fallback: 'student123')
+    // Faculty/Deans: 'teacher123'
+    const initialPassword =
+      targetUser.role === 'student'
+        ? (targetUser.studentNumber && targetUser.studentNumber.trim() ? targetUser.studentNumber.trim() : 'student123')
+        : 'teacher123';
+
+    const updatedUser: User = {
+      ...targetUser,
+      customPassword: initialPassword,
+      mustChangePassword: true,
+    };
+
+    // 1. Update persistent auth vault (localStorage and Supabase sys-auth-vault)
+    await saveStoredCredential(updatedUser, initialPassword, true);
+
+    // 2. Update state in DataContext & cached local storage
+    setAllUsers((prev) => {
+      const copy = prev.map((u) => (u.id === userId ? updatedUser : u));
+      try {
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(copy));
+      } catch (e) {}
+      return copy;
+    });
+
+    // 3. Sync to Supabase users table with metadata fallback
+    const secIds = getStudentSectionIds(updatedUser);
+    syncEngine.enqueue('users', 'UPSERT', {
+      id: updatedUser.id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      student_number: updatedUser.studentNumber || null,
+      section_id: formatSectionIds(secIds),
+      avatar: updatedUser.avatar || null,
+      department:
+        updatedUser.role === 'student'
+          ? JSON.stringify({ customPassword: initialPassword, mustChangePassword: true })
+          : updatedUser.department || null,
+      title: updatedUser.title || null,
+    });
+
+    return { success: true, initialPassword, user: updatedUser };
+  };
+
   // --- Faculty / Teacher actions ---
   const addTeacher = (
     teacherData: Omit<User, 'id' | 'role'>,
@@ -1223,6 +1278,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         bulkAddStudents,
         updateStudent,
         deleteStudent,
+        resetUserPassword,
         resetToDefault,
         getRawData,
         importData,

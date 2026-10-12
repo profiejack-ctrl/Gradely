@@ -8,10 +8,11 @@ import { NeuBadge } from '../common/NeuBadge';
 import { NeuSelect, NeuInput } from '../common/NeuInput';
 import { StudentModal } from './StudentModal';
 import { BulkStudentUploadModal } from './BulkStudentUploadModal';
+import { ResetStudentPasswordModal } from './ResetStudentPasswordModal';
 import { calculateStudentSubjectPerformance } from '../../utils/gradeCalculator';
 import { compareByLastName, formatLastFirst } from '../../utils/nameUtils';
 import { isStudentInSection, getStudentSectionIds, getStudentEnrolledSubjects } from '../../utils/enrollmentUtils';
-import { Plus, Search, Edit2, Trash2, Mail, GraduationCap, Award, Upload, ArrowUpDown } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Mail, GraduationCap, Award, Upload, ArrowUpDown, KeyRound } from 'lucide-react';
 
 interface StudentRosterProps {
   initialSectionId?: string;
@@ -40,6 +41,8 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
   const [displayLastFirst, setDisplayLastFirst] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [studentToReset, setStudentToReset] = useState<User | null>(null);
   const [studentToEdit, setStudentToEdit] = useState<User | null>(null);
 
   const filteredStudents = students.filter((s) => {
@@ -163,6 +166,19 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
               </button>
             </div>
           )}
+
+          <NeuButton
+            variant="secondary"
+            size="md"
+            onClick={() => {
+              setStudentToReset(null);
+              setIsResetModalOpen(true);
+            }}
+            leftIcon={<KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
+            className="border-amber-200/80 dark:border-amber-900/60 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+          >
+            Reset Password
+          </NeuButton>
 
           <NeuButton
             variant="secondary"
@@ -318,6 +334,16 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
 
                   <div className="flex items-center gap-1">
                     <button
+                      onClick={() => {
+                        setStudentToReset(student);
+                        setIsResetModalOpen(true);
+                      }}
+                      className="p-1 rounded-lg text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                      title="Reset Password to Student ID"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                    </button>
+                    <button
                       onClick={() => handleOpenEdit(student)}
                       className="p-1 rounded-lg text-slate-400 hover:text-[#1E3A8A] dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                       title="Edit Student"
@@ -397,6 +423,16 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
         selectedSectionId={selectedSectionId !== 'all' ? selectedSectionId : undefined}
         studentToEdit={studentToEdit}
         onSave={handleSaveStudent}
+      />
+
+      <ResetStudentPasswordModal
+        isOpen={isResetModalOpen}
+        onClose={() => {
+          setIsResetModalOpen(false);
+          setStudentToReset(null);
+        }}
+        preselectedStudent={studentToReset}
+        onShowToast={onShowToast}
       />
     </div>
   );
