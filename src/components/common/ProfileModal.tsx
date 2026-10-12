@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
@@ -17,7 +17,11 @@ import {
   Check,
   X,
   RefreshCw,
+  Upload,
+  Camera,
+  Link2,
 } from 'lucide-react';
+import { processAndUploadAvatar } from '../../utils/imageUtils';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -58,6 +62,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Avatar upload and custom photo state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [showCustomUrlInput, setShowCustomUrlInput] = useState(false);
+  const [customUrl, setCustomUrl] = useState('');
+
   // Sync form with current user on open
   useEffect(() => {
     if (currentUser) {
@@ -70,6 +81,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       setNewPassword('');
       setConfirmPassword('');
       setErrorMessage(null);
+      setShowCustomUrlInput(false);
+      setCustomUrl('');
+      setIsDragging(false);
+      setIsProcessingImage(false);
     }
   }, [currentUser, isOpen]);
 
@@ -99,6 +114,61 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     const style = isTeacher ? 'bottts' : 'lorelei';
     const newAvatarUrl = `https://api.dicebear.com/7.x/${style}/svg?seed=${randomSeed}`;
     setAvatar(newAvatarUrl);
+  };
+
+  const processImageFile = async (file: File) => {
+    setIsProcessingImage(true);
+    setErrorMessage(null);
+    try {
+      const result = await processAndUploadAvatar(file, currentUser.id, { maxWidth: 256, maxHeight: 256, quality: 0.85 });
+      setAvatar(result.url);
+      if (result.isCloudStorage) {
+        onShowToast('Cloud Upload Complete', 'Saved to Supabase S3 Storage. Click Save Changes to apply.', 'success');
+      } else {
+        onShowToast('Photo Ready', 'Custom picture selected. Click Save Changes to apply.', 'info');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to process selected image.');
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processImageFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await processImageFile(file);
+    }
+  };
+
+  const handleApplyCustomUrl = () => {
+    if (!customUrl.trim()) return;
+    setAvatar(customUrl.trim());
+    setShowCustomUrlInput(false);
+    setCustomUrl('');
+    onShowToast('Avatar URL Set', 'Image URL applied. Click Save Changes to apply.', 'info');
   };
 
   const isPasswordValid =
@@ -212,32 +282,79 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               )}
 
               {/* Avatar Section */}
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 space-y-3">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                  Profile Photo / Avatar
-                </label>
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                  <div className="relative group shrink-0">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Profile Photo / Avatar
+                  </label>
+                  <span className="text-[11px] text-slate-400">
+                    PNG, JPG, WebP up to 10MB
+                  </span>
+                </div>
+
+                {/* Hidden File Input */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileInputChange}
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                />
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  {/* Avatar Preview Box with Hover & Drag-and-Drop */}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`relative group shrink-0 cursor-pointer rounded-2xl overflow-hidden shadow-md transition-all ${
+                      isDragging
+                        ? 'ring-4 ring-[#F97316] ring-offset-2 scale-105 shadow-orange-500/20'
+                        : 'ring-2 ring-[#1E3A8A]/30 dark:ring-blue-500/30 hover:ring-[#F97316]/70 hover:shadow-lg'
+                    }`}
+                    title="Click or drag an image here to upload custom photo"
+                  >
                     <img
                       src={avatar || currentUser.avatar}
                       alt={name}
-                      className="w-16 h-16 rounded-2xl object-cover ring-2 ring-[#1E3A8A]/30 dark:ring-blue-500/30 shadow-md"
+                      className="w-20 h-20 object-cover rounded-2xl transition-transform duration-300 group-hover:scale-105"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name || 'User')}`;
                       }}
                     />
-                    <button
-                      type="button"
-                      onClick={handleGenerateDicebearAvatar}
-                      className="absolute -bottom-1 -right-1 p-1.5 rounded-xl bg-[#1E3A8A] text-white shadow-md hover:bg-blue-900 transition-all"
-                      title="Generate Random Avatar"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    </button>
+
+                    {/* Hover Overlay */}
+                    <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity duration-200">
+                      <Camera className="w-5 h-5 mb-0.5" />
+                      <span className="text-[10px] font-semibold tracking-wide uppercase">Change</span>
+                    </div>
+
+                    {/* Processing Spinner Overlay */}
+                    {isProcessingImage && (
+                      <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xs flex flex-col items-center justify-center text-white gap-1">
+                        <RefreshCw className="w-5 h-5 animate-spin text-[#F97316]" />
+                        <span className="text-[9px] font-medium">Resizing...</span>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex-1 space-y-2 w-full">
-                    <div className="flex items-center gap-2">
+                  {/* Actions & Presets */}
+                  <div className="flex-1 space-y-2.5 w-full">
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <NeuButton
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isProcessingImage}
+                        leftIcon={<Upload className="w-3.5 h-3.5" />}
+                        className="text-xs"
+                      >
+                        Upload Photo
+                      </NeuButton>
+
                       <NeuButton
                         type="button"
                         variant="secondary"
@@ -246,26 +363,63 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         leftIcon={<Sparkles className="w-3.5 h-3.5 text-[#F97316]" />}
                         className="text-xs"
                       >
-                        Generate Avatar
+                        Random Avatar
                       </NeuButton>
-                      <span className="text-[11px] text-slate-400">or pick a preset:</span>
+
+                      <NeuButton
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setShowCustomUrlInput(!showCustomUrlInput)}
+                        leftIcon={<Link2 className="w-3.5 h-3.5 text-slate-500" />}
+                        className="text-xs"
+                      >
+                        URL
+                      </NeuButton>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {AVATAR_PRESETS.map((presetUrl, idx) => (
-                        <button
-                          key={idx}
+                    {/* Custom URL Input Field (Collapsible) */}
+                    {showCustomUrlInput && (
+                      <div className="flex items-center gap-2 pt-1 animate-fade-in">
+                        <input
+                          type="url"
+                          placeholder="Paste image URL (https://...)"
+                          value={customUrl}
+                          onChange={(e) => setCustomUrl(e.target.value)}
+                          className="flex-1 text-xs px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]"
+                        />
+                        <NeuButton
                           type="button"
-                          onClick={() => setAvatar(presetUrl)}
-                          className={`w-7 h-7 rounded-lg overflow-hidden border-2 transition-all ${
-                            avatar === presetUrl
-                              ? 'border-[#F97316] scale-110 shadow-sm'
-                              : 'border-transparent opacity-70 hover:opacity-100'
-                          }`}
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleApplyCustomUrl}
+                          disabled={!customUrl.trim()}
+                          className="text-xs"
                         >
-                          <img src={presetUrl} alt="preset" className="w-full h-full object-cover" />
-                        </button>
-                      ))}
+                          Apply
+                        </NeuButton>
+                      </div>
+                    )}
+
+                    {/* Preset Avatars Row */}
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <span className="text-[11px] text-slate-400 shrink-0">Presets:</span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {AVATAR_PRESETS.map((presetUrl, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setAvatar(presetUrl)}
+                            className={`w-7 h-7 rounded-lg overflow-hidden border-2 transition-all ${
+                              avatar === presetUrl
+                                ? 'border-[#F97316] scale-110 shadow-sm'
+                                : 'border-transparent opacity-70 hover:opacity-100 hover:scale-105'
+                            }`}
+                          >
+                            <img src={presetUrl} alt="preset" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>

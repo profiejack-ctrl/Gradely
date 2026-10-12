@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../../types';
 import { NeuModal } from '../common/NeuModal';
 import { NeuButton } from '../common/NeuButton';
 import { NeuInput, NeuSelect } from '../common/NeuInput';
-import { Sparkles, KeyRound } from 'lucide-react';
+import { Sparkles, KeyRound, Upload, Camera } from 'lucide-react';
+import { processAvatarFile } from '../../utils/imageUtils';
 
 interface FacultyModalProps {
   isOpen: boolean;
@@ -89,6 +90,26 @@ export const FacultyModal: React.FC<FacultyModalProps> = ({
       facultyToEdit?.id
     );
     onClose();
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsProcessingImage(true);
+    setImageError(null);
+    try {
+      const dataUrl = await processAvatarFile(file);
+      setAvatar(dataUrl);
+    } catch (err: any) {
+      setImageError(err?.message || 'Failed to process image');
+    } finally {
+      setIsProcessingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleGenerateAvatar = () => {
@@ -182,8 +203,20 @@ export const FacultyModal: React.FC<FacultyModalProps> = ({
         </div>
 
         {/* Avatar Section */}
-        <div className="flex items-center gap-3 pt-1">
-          <div className="w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0">
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileUpload}
+          accept="image/*"
+          className="hidden"
+        />
+
+        <div className="flex items-center gap-3.5 pt-1">
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="relative group w-14 h-14 rounded-2xl border-2 border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 cursor-pointer shadow-sm hover:border-[#F97316] transition-all"
+            title="Click to upload custom photo"
+          >
             {avatar ? (
               <img src={avatar} alt="Avatar Preview" className="w-full h-full object-cover" />
             ) : (
@@ -191,18 +224,41 @@ export const FacultyModal: React.FC<FacultyModalProps> = ({
                 {name ? name.charAt(0).toUpperCase() : 'Prof'}
               </div>
             )}
+            <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+              <Camera className="w-4 h-4" />
+            </div>
+            {isProcessingImage && (
+              <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center text-white text-[10px]">
+                ...
+              </div>
+            )}
           </div>
-          <div className="flex-1">
-            <button
-              type="button"
-              onClick={handleGenerateAvatar}
-              className="text-xs font-semibold text-[#1E3A8A] dark:text-blue-300 hover:text-[#F97316] flex items-center gap-1.5 transition-colors"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#F97316]" />
-              <span>Generate Random Avatar</span>
-            </button>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Generates a distinctive profile avatar for the instructor
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <NeuButton
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                leftIcon={<Upload className="w-3.5 h-3.5" />}
+                className="text-xs py-1 px-2.5"
+              >
+                Upload Photo
+              </NeuButton>
+              <button
+                type="button"
+                onClick={handleGenerateAvatar}
+                className="text-xs font-semibold text-[#1E3A8A] dark:text-blue-300 hover:text-[#F97316] flex items-center gap-1.5 transition-colors ml-1"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#F97316]" />
+                <span>Random</span>
+              </button>
+            </div>
+            {imageError && (
+              <p className="text-[11px] text-rose-500 font-medium">{imageError}</p>
+            )}
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Upload custom photo or generate a random avatar
             </p>
           </div>
         </div>
