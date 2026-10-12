@@ -19,7 +19,10 @@ import {
   calculatePeriodSummary,
   calculateAttendanceStats,
 } from '../../utils/gradeCalculator';
-import { exportGradebookToCSV } from '../../utils/exportUtils';
+import {
+  exportGradebookToOfficialSMSCSV,
+  exportGradebookToSummaryReportCSV,
+} from '../../utils/exportUtils';
 import {
   Plus,
   Sliders,
@@ -34,6 +37,8 @@ import {
   Award,
   ArrowUpDown,
   GraduationCap,
+  ChevronDown,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { compareByLastName, formatLastFirst } from '../../utils/nameUtils';
 import { isStudentInSection } from '../../utils/enrollmentUtils';
@@ -127,6 +132,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
   const [initialAssessmentPeriod, setInitialAssessmentPeriod] = useState<GradingPeriod>('prelim');
   const [isMatrixModalOpen, setIsMatrixModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   // Active subject object
   const activeSubject: Subject | undefined = sectionSubjects.find(
@@ -203,10 +209,18 @@ export const Gradebook: React.FC<GradebookProps> = ({
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExportOfficialSMS = () => {
     if (!activeSubject) return;
-    exportGradebookToCSV(activeSubject, sectionStudents, assessments, scores, attendance, activePeriodTab);
-    onShowToast('CSV Downloaded', `${activeSubject.code} ${activePeriodTab.toUpperCase()} grade sheet exported.`, 'success');
+    exportGradebookToOfficialSMSCSV(activeSubject, sectionStudents, assessments, scores, attendance, activePeriodTab);
+    onShowToast('School SMS CSV Exported', `${activeSubject.code} exported in official 36-column school SMS format.`, 'success');
+    setIsExportMenuOpen(false);
+  };
+
+  const handleExportSummaryReport = () => {
+    if (!activeSubject) return;
+    exportGradebookToSummaryReportCSV(activeSubject, sectionStudents, assessments, scores, attendance);
+    onShowToast('Summary Report Exported', `${activeSubject.code} Collegiate Semestral Summary grade sheet exported.`, 'success');
+    setIsExportMenuOpen(false);
   };
 
   const handlePrint = () => {
@@ -515,14 +529,67 @@ export const Gradebook: React.FC<GradebookProps> = ({
             Import Masterlist
           </NeuButton>
 
-          <NeuButton
-            variant="secondary"
-            size="sm"
-            onClick={handleExportCSV}
-            leftIcon={<Download className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />}
-          >
-            Export {activePeriodTab.toUpperCase()} CSV
-          </NeuButton>
+          {/* Export CSV / SMS Dropdown */}
+          <div className="relative">
+            <div className="inline-flex rounded-xl shadow-xs overflow-hidden">
+              <NeuButton
+                variant="secondary"
+                size="sm"
+                onClick={handleExportOfficialSMS}
+                leftIcon={<Download className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />}
+                className="rounded-r-none border-r border-slate-200 dark:border-slate-700"
+                title="Export directly in the official School SMS 36-column format"
+              >
+                Export School SMS CSV
+              </NeuButton>
+              <button
+                type="button"
+                onClick={() => setIsExportMenuOpen((prev) => !prev)}
+                className="px-2 py-1.5 bg-white dark:bg-[#111827] border border-l-0 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors flex items-center justify-center rounded-r-xl"
+                aria-label="Export options"
+              >
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+
+            {isExportMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-20"
+                  onClick={() => setIsExportMenuOpen(false)}
+                />
+                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-30 py-1 text-xs divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in-50 zoom-in-95 duration-100">
+                  <button
+                    type="button"
+                    onClick={handleExportOfficialSMS}
+                    className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/80 flex items-start gap-2.5 text-slate-700 dark:text-slate-200 transition-colors"
+                  >
+                    <Download className="w-4 h-4 text-[#1E3A8A] dark:text-blue-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-slate-900 dark:text-white">Official School SMS CSV</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                        36-column official template (Written works = Quiz). Fully compatible with school portal upload.
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExportSummaryReport}
+                    className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/80 flex items-start gap-2.5 text-slate-700 dark:text-slate-200 transition-colors"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-slate-900 dark:text-white">Collegiate Summary Sheet</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                        Periodical weighted % (Prelim, Midterm, Finals) with Semestral 1.00–5.00 Transmuted Grade.
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           <NeuButton
             variant="secondary"
