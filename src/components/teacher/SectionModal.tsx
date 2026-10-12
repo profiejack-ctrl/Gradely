@@ -14,6 +14,37 @@ interface SectionModalProps {
   isDean?: boolean;
 }
 
+const YEAR_LEVEL_OPTIONS = [
+  { value: '1st Year College', label: '1st Year College' },
+  { value: '2nd Year College', label: '2nd Year College' },
+  { value: '3rd Year College', label: '3rd Year College' },
+  { value: '4th Year College', label: '4th Year College' },
+  { value: '5th Year College', label: '5th Year College' },
+  { value: 'Graduate Studies', label: 'Graduate Studies (Master\'s / PhD)' },
+  { value: 'Grade 11 (Senior High)', label: 'Grade 11 (Senior High)' },
+  { value: 'Grade 12 (Senior High)', label: 'Grade 12 (Senior High)' },
+  { value: 'Grade 7 (Junior High)', label: 'Grade 7 (Junior High)' },
+  { value: 'Grade 8 (Junior High)', label: 'Grade 8 (Junior High)' },
+  { value: 'Grade 9 (Junior High)', label: 'Grade 9 (Junior High)' },
+  { value: 'Grade 10 (Junior High)', label: 'Grade 10 (Junior High)' },
+  { value: '__custom__', label: 'Custom / Other...' },
+];
+
+const SEMESTER_TERM_OPTIONS = [
+  { value: '1st Semester', label: '1st Semester' },
+  { value: '2nd Semester', label: '2nd Semester' },
+  { value: 'Summer / Midyear Term', label: 'Summer / Midyear Term' },
+  { value: '1st Trimester', label: '1st Trimester' },
+  { value: '2nd Trimester', label: '2nd Trimester' },
+  { value: '3rd Trimester', label: '3rd Trimester' },
+  { value: '1st Quarter', label: '1st Quarter' },
+  { value: '2nd Quarter', label: '2nd Quarter' },
+  { value: '3rd Quarter', label: '3rd Quarter' },
+  { value: '4th Quarter', label: '4th Quarter' },
+  { value: 'Full Academic Year', label: 'Full Academic Year' },
+  { value: '__custom__', label: 'Custom / Other...' },
+];
+
 export const SectionModal: React.FC<SectionModalProps> = ({
   isOpen,
   onClose,
@@ -24,9 +55,11 @@ export const SectionModal: React.FC<SectionModalProps> = ({
   isDean = false,
 }) => {
   const [name, setName] = useState('');
-  const [gradeLevelOrYear, setGradeLevelOrYear] = useState('');
+  const [gradeLevelOrYear, setGradeLevelOrYear] = useState('1st Year College');
+  const [showCustomYear, setShowCustomYear] = useState(false);
   const [academicYear, setAcademicYear] = useState('2025-2026');
   const [semester, setSemester] = useState('1st Semester');
+  const [showCustomSemester, setShowCustomSemester] = useState(false);
   const [room, setRoom] = useState('');
   const [description, setDescription] = useState('');
   const [adviserId, setAdviserId] = useState<string>(currentUserId || '');
@@ -34,22 +67,39 @@ export const SectionModal: React.FC<SectionModalProps> = ({
   useEffect(() => {
     if (sectionToEdit) {
       setName(sectionToEdit.name);
-      setGradeLevelOrYear(sectionToEdit.gradeLevelOrYear);
-      setAcademicYear(sectionToEdit.academicYear);
-      setSemester(sectionToEdit.semester);
+      setGradeLevelOrYear(sectionToEdit.gradeLevelOrYear || '1st Year College');
+      setAcademicYear(sectionToEdit.academicYear || '2025-2026');
+      setSemester(sectionToEdit.semester || '1st Semester');
       setRoom(sectionToEdit.room || '');
       setDescription(sectionToEdit.description || '');
       setAdviserId(sectionToEdit.adviserId || currentUserId || '');
+      setShowCustomYear(false);
+      setShowCustomSemester(false);
     } else {
       setName('');
-      setGradeLevelOrYear('3rd Year College');
+      setGradeLevelOrYear('1st Year College');
       setAcademicYear('2025-2026');
       setSemester('1st Semester');
       setRoom('');
       setDescription('');
       setAdviserId(currentUserId || '');
+      setShowCustomYear(false);
+      setShowCustomSemester(false);
     }
   }, [sectionToEdit, isOpen, currentUserId]);
+
+  // Ensure any existing custom value from database is available in the dropdown
+  const yearOptions = YEAR_LEVEL_OPTIONS.some((o) => o.value === gradeLevelOrYear)
+    ? YEAR_LEVEL_OPTIONS
+    : gradeLevelOrYear
+    ? [{ value: gradeLevelOrYear, label: gradeLevelOrYear }, ...YEAR_LEVEL_OPTIONS]
+    : YEAR_LEVEL_OPTIONS;
+
+  const semesterOptions = SEMESTER_TERM_OPTIONS.some((o) => o.value === semester)
+    ? SEMESTER_TERM_OPTIONS
+    : semester
+    ? [{ value: semester, label: semester }, ...SEMESTER_TERM_OPTIONS]
+    : SEMESTER_TERM_OPTIONS;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,9 +111,9 @@ export const SectionModal: React.FC<SectionModalProps> = ({
     onSave(
       {
         name: name.trim(),
-        gradeLevelOrYear: gradeLevelOrYear.trim(),
+        gradeLevelOrYear: gradeLevelOrYear.trim() || '1st Year College',
         academicYear: academicYear.trim(),
-        semester: semester.trim(),
+        semester: semester.trim() || '1st Semester',
         room: room.trim(),
         description: description.trim(),
         adviserId: effectiveAdviserId,
@@ -91,11 +141,19 @@ export const SectionModal: React.FC<SectionModalProps> = ({
         />
 
         <div className="grid grid-cols-2 gap-3">
-          <NeuInput
+          <NeuSelect
             label="Year / Grade Level"
-            placeholder="e.g. 3rd Year College or Grade 10"
-            value={gradeLevelOrYear}
-            onChange={(e) => setGradeLevelOrYear(e.target.value)}
+            options={yearOptions}
+            value={showCustomYear ? '__custom__' : gradeLevelOrYear}
+            onChange={(e) => {
+              if (e.target.value === '__custom__') {
+                setShowCustomYear(true);
+                setGradeLevelOrYear('');
+              } else {
+                setShowCustomYear(false);
+                setGradeLevelOrYear(e.target.value);
+              }
+            }}
             required
           />
 
@@ -108,21 +166,51 @@ export const SectionModal: React.FC<SectionModalProps> = ({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        {showCustomYear && (
           <NeuInput
+            label="Custom Year / Grade Level"
+            placeholder="Type custom year or grade level..."
+            value={gradeLevelOrYear}
+            onChange={(e) => setGradeLevelOrYear(e.target.value)}
+            required
+            autoFocus
+          />
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <NeuSelect
             label="Semester / Term"
-            placeholder="e.g. 1st Semester"
-            value={semester}
-            onChange={(e) => setSemester(e.target.value)}
+            options={semesterOptions}
+            value={showCustomSemester ? '__custom__' : semester}
+            onChange={(e) => {
+              if (e.target.value === '__custom__') {
+                setShowCustomSemester(true);
+                setSemester('');
+              } else {
+                setShowCustomSemester(false);
+                setSemester(e.target.value);
+              }
+            }}
           />
 
           <NeuInput
             label="Room / Location (Optional)"
-            placeholder="e.g. Lab 402"
+            placeholder="e.g. Lab 402 or MV208"
             value={room}
             onChange={(e) => setRoom(e.target.value)}
           />
         </div>
+
+        {showCustomSemester && (
+          <NeuInput
+            label="Custom Semester / Term"
+            placeholder="Type custom semester or term..."
+            value={semester}
+            onChange={(e) => setSemester(e.target.value)}
+            required
+            autoFocus
+          />
+        )}
 
         {isDean && teachers.length > 0 && (
           <NeuSelect

@@ -327,7 +327,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
             </div>
           )}
 
-          <div className="w-44 sm:w-50">
+          <div className="w-full sm:w-44 md:w-48">
             <NeuSelect
               label="Class / Section"
               options={sectionOptions}
@@ -340,7 +340,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
             />
           </div>
 
-          <div className="w-56 sm:w-64">
+          <div className="w-full sm:w-56 md:w-60">
             <NeuSelect
               label="Subject Course"
               options={subjectOptions}
@@ -352,82 +352,82 @@ export const Gradebook: React.FC<GradebookProps> = ({
       </div>
 
       {/* 3-Quarter Period Navigation Tabs */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {/* Prelim Tab */}
           <button
             onClick={() => setActivePeriodTab('prelim')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
               activePeriodTab === 'prelim'
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
             }`}
           >
-            <span>1️⃣ Prelim Period</span>
+            <span>1️⃣ Prelim</span>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+              className={`text-[9.5px] sm:text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                 activePeriodTab === 'prelim'
                   ? 'bg-white/20 text-white'
                   : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
               }`}
             >
-              30% Wt • {prelimCount} items
+              30% • {prelimCount}
             </span>
           </button>
 
           {/* Midterm Tab */}
           <button
             onClick={() => setActivePeriodTab('midterm')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
               activePeriodTab === 'midterm'
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
             }`}
           >
-            <span>2️⃣ Midterm Period</span>
+            <span>2️⃣ Midterm</span>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+              className={`text-[9.5px] sm:text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                 activePeriodTab === 'midterm'
                   ? 'bg-white/20 text-white'
                   : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
               }`}
             >
-              30% Wt • {midtermCount} items
+              30% • {midtermCount}
             </span>
           </button>
 
           {/* Finals Tab */}
           <button
             onClick={() => setActivePeriodTab('finals')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
               activePeriodTab === 'finals'
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
             }`}
           >
-            <span>3️⃣ Finals Period</span>
+            <span>3️⃣ Finals</span>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+              className={`text-[9.5px] sm:text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                 activePeriodTab === 'finals'
                   ? 'bg-white/20 text-white'
                   : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
               }`}
             >
-              40% Wt • {finalsCount} items
+              40% • {finalsCount}
             </span>
           </button>
 
           {/* Semestral Summary Master Tab */}
           <button
             onClick={() => setActivePeriodTab('summary')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
               activePeriodTab === 'summary'
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
             }`}
           >
             <Award className="w-3.5 h-3.5" />
-            <span>🌟 Semestral Master Summary (100%)</span>
+            <span>🌟 Summary (100%)</span>
           </button>
         </div>
 

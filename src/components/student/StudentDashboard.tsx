@@ -77,12 +77,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Student Welcome Header */}
-      <div className="bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-4 sm:p-7 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+      <div className="bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-4 sm:p-6 lg:p-7 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5 shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
         <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
           <img
             src={student?.avatar}
             alt={student?.name}
-            className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl object-cover ring-2 ring-orange-500/20 shadow-xs shrink-0"
+            className="w-14 h-14 sm:w-16 md:w-20 sm:h-16 md:h-20 rounded-2xl object-cover ring-2 ring-orange-500/20 shadow-xs shrink-0"
           />
           <div className="space-y-0.5 sm:space-y-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -93,7 +93,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 Active Student
               </NeuBadge>
             </div>
-            <h1 className="text-lg sm:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight truncate">
+            <h1 className="text-lg sm:text-2xl md:text-3xl font-bold font-heading text-slate-900 dark:text-white tracking-tight truncate">
               Hello, {student?.name}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">
@@ -103,13 +103,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex sm:items-center gap-2 w-full sm:w-auto shrink-0">
+        <div className="flex flex-row sm:flex-row xl:flex-col items-center gap-2 w-full xl:w-auto shrink-0">
           <NeuButton
             variant="secondary"
             size="md"
             onClick={() => onNavigate('student-simulator')}
             leftIcon={<Calculator className="w-4 h-4 text-[#F97316] dark:text-orange-400" />}
-            className="w-full justify-center text-xs sm:text-sm"
+            className="flex-1 sm:flex-initial justify-center text-xs sm:text-sm"
           >
             "What-If" Calculator
           </NeuButton>
@@ -118,7 +118,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             size="md"
             onClick={() => onNavigate('student-subjects')}
             leftIcon={<BookOpen className="w-4 h-4 text-white" />}
-            className="w-full justify-center text-xs sm:text-sm shadow-sm"
+            className="flex-1 sm:flex-initial justify-center text-xs sm:text-sm shadow-sm"
           >
             View All Records
           </NeuButton>
@@ -126,9 +126,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       </div>
 
       {/* Academic Highlights & Gauges */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-4">
         {/* Overall Standing Gauge */}
-        <NeuCard className="flex flex-col items-center justify-center p-4.5 sm:p-6 text-center space-y-2">
+        <NeuCard className="flex flex-col items-center justify-center p-4 sm:p-5 text-center space-y-2">
           <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
             <Award className="w-4 h-4 text-amber-500" />
             <span>Cumulative Semestral Grade</span>
@@ -136,7 +136,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           <NeuCircularGauge
             value={avgGrade}
             label={avgGrade >= 75 ? 'Passing' : 'Action Required'}
-            size={135}
+            size={120}
           />
           <div className="flex items-center gap-2">
             <NeuBadge variant={hasHonors ? 'primary' : avgGrade >= 75 ? 'success' : 'danger'}>
@@ -146,7 +146,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </NeuCard>
 
         {/* Attendance Health Gauge */}
-        <NeuCard className="flex flex-col items-center justify-center p-4.5 sm:p-6 text-center space-y-2">
+        <NeuCard className="flex flex-col items-center justify-center p-4 sm:p-5 text-center space-y-2">
           <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
             <CalendarCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>Attendance Health Rate</span>
@@ -154,7 +154,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           <NeuCircularGauge
             value={avgAttendance}
             label="Presence Rate"
-            size={135}
+            size={120}
             color="#10b981"
           />
           <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
@@ -165,7 +165,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </NeuCard>
 
         {/* Quick Insights Card */}
-        <NeuCard className="flex flex-col justify-between p-4.5 sm:p-6 space-y-4">
+        <NeuCard className="flex flex-col justify-between p-4 sm:p-5 space-y-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
               <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />

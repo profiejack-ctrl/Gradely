@@ -125,7 +125,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
                 alt={currentUser?.name}
                 className="w-7 h-7 rounded-lg object-cover ring-1 ring-slate-300 dark:ring-slate-600"
               />
-              <div className="hidden lg:block text-left">
+              <div className="hidden md:block text-left">
                 <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[110px]">
                   {currentUser?.name}
                 </div>

@@ -185,8 +185,8 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
       </div>
 
       {/* Filter, Search, and Sort Controls */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="flex-1 min-w-[200px]">
+      <div className="flex flex-col sm:flex-row flex-wrap xl:flex-nowrap items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
+        <div className="flex-1 min-w-[180px]">
           <NeuInput
             placeholder="Search by name, student ID, email..."
             value={searchQuery}
@@ -195,7 +195,7 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
           />
         </div>
 
-        <div className="w-full sm:w-56">
+        <div className="w-full sm:w-48 md:w-52">
           <NeuSelect
             options={sectionOptions}
             value={selectedSectionId}
@@ -203,7 +203,7 @@ export const StudentRoster: React.FC<StudentRosterProps> = ({
           />
         </div>
 
-        <div className="w-full sm:w-60">
+        <div className="w-full sm:w-52 md:w-56">
           <NeuSelect
             options={sortOptions}
             value={sortBy}

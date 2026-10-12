@@ -45,9 +45,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
   const items = isTeacher ? teacherItems : studentItems;
 
   return (
-    <aside className={`w-full lg:w-60 shrink-0 flex flex-col gap-1.5 ${!isTeacher ? 'hidden lg:flex' : ''}`}>
-      <div className="bg-white/90 dark:bg-[#0d1424]/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-2.5 flex flex-row lg:flex-col gap-1 overflow-x-auto lg:overflow-visible shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
-        <div className="hidden lg:flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+    <aside
+      className={`w-full md:w-52 lg:w-60 shrink-0 flex flex-col gap-1.5 md:sticky md:top-20 md:self-start z-30 ${
+        !isTeacher ? 'hidden md:flex' : ''
+      }`}
+    >
+      <div className="bg-white/90 dark:bg-[#0d1424]/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-2 md:p-2.5 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-visible shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+        <div className="hidden md:flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
           <span>{isTeacher ? (isDean ? 'Dean Administration' : 'Instructor Portal') : 'Student Portal'}</span>
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-glow" title="System Online" />
         </div>
@@ -58,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
             <button
               key={item.id}
               onClick={() => onSelectTab(item.id)}
-              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 whitespace-nowrap outline-none select-none text-left shrink-0 active:scale-[0.98] ${
+              className={`flex items-center gap-2 md:gap-2.5 px-3 py-2 md:px-3.5 md:py-2.5 rounded-xl text-xs md:text-sm font-semibold transition-all duration-150 whitespace-nowrap outline-none select-none text-left shrink-0 active:scale-[0.98] ${
                 isActive
                   ? 'bg-orange-50/90 dark:bg-orange-950/50 text-[#c2410c] dark:text-orange-300 font-bold border border-orange-200/90 dark:border-orange-800/70 shadow-2xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-[#1E3A8A] dark:hover:text-blue-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/60'
@@ -67,7 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
               <span className={isActive ? 'text-[#F97316] dark:text-orange-400' : 'text-slate-400 dark:text-slate-500'}>
                 {item.icon}
               </span>
-              <span>{item.label}</span>
+              <span className="truncate">{item.label}</span>
             </button>
           );
         })}

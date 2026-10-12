@@ -125,12 +125,12 @@ const MainLayout: React.FC = () => {
       <Navbar onShowToast={showToast} />
 
       {/* Main App Container */}
-      <div className="max-w-7xl w-full mx-auto px-3.5 py-3.5 sm:p-6 md:p-8 flex-1 flex flex-col lg:flex-row gap-4 sm:gap-6">
+      <div className="max-w-7xl w-full mx-auto px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 lg:px-6 lg:py-6 flex-1 flex flex-col md:flex-row gap-4 md:gap-5 lg:gap-6">
         {/* Navigation Sidebar */}
         <Sidebar currentTab={currentTab} onSelectTab={(tab) => setCurrentTab(tab)} />
 
         {/* Dynamic View Area */}
-        <main className={`flex-1 min-w-0 ${!isTeacher ? 'pb-24 lg:pb-0' : ''}`}>
+        <main className={`flex-1 min-w-0 ${!isTeacher ? 'pb-20 md:pb-0' : ''}`}>
           {/* Teacher Views */}
           {isTeacher && currentTab === 'dashboard' && (
             <TeacherDashboard

@@ -82,7 +82,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Welcome Banner */}
-      <div className="bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-6 sm:p-7 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+      <div className="bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-5 sm:p-6 lg:p-7 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5 shadow-xs dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
         <div className="space-y-1.5 max-w-xl">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[#1E3A8A] dark:text-blue-400">
@@ -178,10 +178,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       </div>
 
       {/* Quick Launchers */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-4">
         <div
           onClick={() => onNavigate('gradebook')}
-          className="p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-[#1E3A8A]/40 dark:hover:border-blue-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
+          className="p-4 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-[#1E3A8A]/40 dark:hover:border-blue-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
         >
           <div className="flex items-center justify-between">
             <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950 text-[#1E3A8A] dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">
@@ -199,7 +199,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
         <div
           onClick={() => onNavigate('attendance')}
-          className="p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/40 dark:hover:border-emerald-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
+          className="p-4 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/40 dark:hover:border-emerald-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
         >
           <div className="flex items-center justify-between">
             <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50">
@@ -217,7 +217,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
         <div
           onClick={() => onNavigate('subjects')}
-          className="p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-orange-500/40 dark:hover:border-orange-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
+          className="p-4 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 hover:border-orange-500/40 dark:hover:border-orange-500/40 hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between gap-3 group active:scale-[0.99]"
         >
           <div className="flex items-center justify-between">
             <div className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950 text-[#F97316] dark:text-orange-400 border border-orange-100 dark:border-orange-900/50">

@@ -326,7 +326,7 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
             </div>
           )}
 
-          <div className="w-44 sm:w-48">
+          <div className="w-full sm:w-44 md:w-48">
             <NeuSelect
               label="Class / Section"
               options={sectionOptions}
@@ -339,7 +339,7 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
             />
           </div>
 
-          <div className="w-52 sm:w-60">
+          <div className="w-full sm:w-52 md:w-60">
             <NeuSelect
               label="Course Subject"
               options={subjectOptions}
@@ -351,75 +351,75 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
       </div>
 
       {/* 3-Quarter Period Tabs */}
-      <div className="bg-white dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-2 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-2 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {/* Prelim Tab */}
           <button
             onClick={() => setActivePeriod('prelim')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
               activePeriod === 'prelim'
                 ? 'bg-[#1E3A8A] text-white shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
             }`}
           >
-            <span>1️⃣ Prelim Roll</span>
+            <span>1️⃣ Prelim</span>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+              className={`text-[9.5px] sm:text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                 activePeriod === 'prelim'
                   ? 'bg-white/20 text-white'
                   : 'bg-blue-100 dark:bg-blue-950 text-[#1E3A8A] dark:text-blue-300'
               }`}
             >
-              {prelimSessions} Sessions
+              {prelimSessions}
             </span>
           </button>
 
           {/* Midterm Tab */}
           <button
             onClick={() => setActivePeriod('midterm')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
               activePeriod === 'midterm'
                 ? 'bg-[#1E3A8A] text-white shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
             }`}
           >
-            <span>2️⃣ Midterm Roll</span>
+            <span>2️⃣ Midterm</span>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+              className={`text-[9.5px] sm:text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                 activePeriod === 'midterm'
                   ? 'bg-white/20 text-white'
                   : 'bg-blue-100 dark:bg-blue-950 text-[#1E3A8A] dark:text-blue-300'
               }`}
             >
-              {midtermSessions} Sessions
+              {midtermSessions}
             </span>
           </button>
 
           {/* Finals Tab */}
           <button
             onClick={() => setActivePeriod('finals')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
               activePeriod === 'finals'
                 ? 'bg-[#1E3A8A] text-white shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
             }`}
           >
-            <span>3️⃣ Finals Roll</span>
+            <span>3️⃣ Finals</span>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+              className={`text-[9.5px] sm:text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                 activePeriod === 'finals'
                   ? 'bg-white/20 text-white'
                   : 'bg-blue-100 dark:bg-blue-950 text-[#1E3A8A] dark:text-blue-300'
               }`}
             >
-              {finalsSessions} Sessions
+              {finalsSessions}
             </span>
           </button>
 
           {/* All Sessions Tab */}
           <button
             onClick={() => setActivePeriod('all')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${
               activePeriod === 'all'
                 ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-sm'
                 : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
