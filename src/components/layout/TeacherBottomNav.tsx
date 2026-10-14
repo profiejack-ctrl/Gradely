@@ -9,6 +9,7 @@ import {
   Sliders,
   Users2,
   UserCog,
+  Sparkles,
   X,
   Plus,
 } from 'lucide-react';
@@ -53,6 +54,12 @@ export const TeacherBottomNav: React.FC<TeacherBottomNavProps> = ({
   ];
 
   const moreTabs = [
+    {
+      id: 'learning-plans',
+      label: 'AI Learning Plans',
+      description: 'Analyze course syllabus & manage weekly student topics',
+      icon: <Sparkles className="w-5 h-5 text-purple-500" />,
+    },
     {
       id: 'subjects',
       label: 'Subjects & Matrices',

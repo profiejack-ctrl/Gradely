@@ -27,6 +27,7 @@ interface SubjectManagerProps {
   initialSectionId?: string;
   onNavigateToGradebook: (sectionId: string, subjectId: string) => void;
   onNavigateToAttendance: (sectionId: string, subjectId: string) => void;
+  onNavigateToLearningPlan?: (subjectId: string) => void;
   onShowToast: (title: string, message?: string, type?: 'success' | 'warning' | 'error' | 'info') => void;
 }
 
@@ -34,10 +35,20 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
   initialSectionId,
   onNavigateToGradebook,
   onNavigateToAttendance,
+  onNavigateToLearningPlan,
   onShowToast,
 }) => {
   const { currentUser, isDean } = useAuth();
-  const { sections, subjects, teachers, addSubject, updateSubject, deleteSubject, updateSubjectMatrix } = useData();
+  const {
+    sections,
+    subjects,
+    teachers,
+    addSubject,
+    updateSubject,
+    deleteSubject,
+    updateSubjectMatrix,
+    getLearningPlanBySubjectId,
+  } = useData();
   const [selectedSectionId, setSelectedSectionId] = useState<string>(
     initialSectionId || 'all'
   );
@@ -226,7 +237,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                   {/* Header info */}
                   <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md">
                           {subj.code}
                         </span>
@@ -236,6 +247,17 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                         <NeuBadge variant="warning" size="sm">
                           Pass: {subj.passingGrade}%
                         </NeuBadge>
+                        {(() => {
+                          const plan = getLearningPlanBySubjectId(subj.id);
+                          if (!plan) return null;
+                          const pubCount = plan.weeklyTopics.filter((t) => t.isPublished).length;
+                          return (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-orange-100 dark:bg-orange-950/60 text-[#c2410c] dark:text-orange-300 border border-orange-200 dark:border-orange-800 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-[#F97316]" />
+                              <span>Plan: {pubCount}/{plan.weeklyTopics.length} Public</span>
+                            </span>
+                          );
+                        })()}
                       </div>
                       <h2 className="text-base font-bold text-slate-900 dark:text-white mt-1.5">{subj.name}</h2>
                       <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -302,14 +324,28 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
 
                 {/* Action Buttons */}
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                  <NeuButton
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleOpenMatrixModal(subj)}
-                    leftIcon={<Sliders className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />}
-                  >
-                    Configure Matrix
-                  </NeuButton>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <NeuButton
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleOpenMatrixModal(subj)}
+                      leftIcon={<Sliders className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />}
+                    >
+                      Configure Matrix
+                    </NeuButton>
+
+                    {onNavigateToLearningPlan && (
+                      <NeuButton
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => onNavigateToLearningPlan(subj.id)}
+                        leftIcon={<Sparkles className="w-3.5 h-3.5 text-[#F97316]" />}
+                        title="View or generate course syllabus learning plan with Gemini AI"
+                      >
+                        AI Learning Plan
+                      </NeuButton>
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-2">
                     <NeuButton

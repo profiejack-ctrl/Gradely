@@ -157,3 +157,31 @@ export interface StudentSubjectPerformance {
   periods: Record<GradingPeriod, PeriodGradeSummary>;
 }
 
+export interface WeeklyTopic {
+  id: string;
+  weekNumber: number;          // Week 1, 2, ..., 18
+  period: GradingPeriod;       // 'prelim' | 'midterm' | 'finals'
+  title: string;               // e.g. "Introduction to Web Architectures & HTTP/3"
+  learningOutcomes: string[];  // Weekly specific competencies/objectives
+  topics: string[];            // Sub-topics and core concepts
+  activities?: string[];       // Recommended exercises, lab tasks, readings
+  notes?: string;              // Teacher's lecture note / study guide
+  isPublished: boolean;        // Switch: true = visible to students, false = draft (teacher-only)
+  updatedAt?: string;
+}
+
+export interface LearningPlan {
+  id: string;
+  subjectId: string;
+  courseTitle: string;
+  courseCode: string;
+  description?: string;        // Course summary / description
+  targetAudience?: string;     // Intended learners / year level
+  prerequisites?: string;      // Course prerequisites
+  learningOutcomes: string[];  // 4-8 overarching course outcomes
+  weeklyTopics: WeeklyTopic[];
+  rawSyllabusText?: string;    // Uploaded/analyzed syllabus summary
+  generatedAt: string;
+  updatedAt: string;
+}
+

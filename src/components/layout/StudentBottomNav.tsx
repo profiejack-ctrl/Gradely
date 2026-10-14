@@ -4,6 +4,7 @@ import {
   BookOpenCheck,
   PieChart,
   Calculator,
+  Sparkles,
 } from 'lucide-react';
 
 interface StudentBottomNavProps {
@@ -27,6 +28,11 @@ export const StudentBottomNav: React.FC<StudentBottomNavProps> = ({
       icon: <BookOpenCheck className="w-5 h-5" />,
     },
     {
+      id: 'student-learning-plans',
+      label: 'Plans',
+      icon: <Sparkles className="w-5 h-5" />,
+    },
+    {
       id: 'student-matrix',
       label: 'Matrices',
       icon: <PieChart className="w-5 h-5" />,
@@ -43,7 +49,7 @@ export const StudentBottomNav: React.FC<StudentBottomNavProps> = ({
       aria-label="Student Mobile Navigation"
       className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-[#070b14]/90 backdrop-blur-xl border-t border-slate-200/90 dark:border-slate-800/80 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 pt-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]"
     >
-      <div className="grid grid-cols-4 gap-1 max-w-md mx-auto">
+      <div className="grid grid-cols-5 gap-1 max-w-md mx-auto">
         {tabs.map((tab) => {
           const isActive = currentTab === tab.id;
 

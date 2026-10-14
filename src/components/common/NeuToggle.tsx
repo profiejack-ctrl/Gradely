@@ -94,3 +94,6 @@ export const NeuSwitch: React.FC<NeuSwitchProps> = ({
     </label>
   );
 };
+
+export const NeuToggle = NeuSwitch;
+

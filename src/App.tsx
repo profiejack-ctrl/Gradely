@@ -15,12 +15,14 @@ import { Gradebook } from './components/teacher/Gradebook';
 import { AttendanceTracker } from './components/teacher/AttendanceTracker';
 import { StudentRoster } from './components/teacher/StudentRoster';
 import { FacultyManager } from './components/teacher/FacultyManager';
+import { LearningPlanManager } from './components/teacher/LearningPlanManager';
 import { SectionModal } from './components/teacher/SectionModal';
 import { SubjectModal } from './components/teacher/SubjectModal';
 
 // Student Views
 import { StudentDashboard } from './components/student/StudentDashboard';
 import { StudentSubjectView } from './components/student/StudentSubjectView';
+import { StudentLearningPlanView } from './components/student/StudentLearningPlanView';
 import { MatrixBreakdownView } from './components/student/MatrixBreakdownView';
 import { GradeSimulator } from './components/student/GradeSimulator';
 import { AuthPage } from './components/auth/AuthPage';
@@ -169,6 +171,10 @@ const MainLayout: React.FC = () => {
                 setNavSubjectId(subjId);
                 setCurrentTab('attendance');
               }}
+              onNavigateToLearningPlan={(subjId) => {
+                setNavSubjectId(subjId);
+                setCurrentTab('learning-plans');
+              }}
               onShowToast={showToast}
             />
           )}
@@ -210,6 +216,13 @@ const MainLayout: React.FC = () => {
             />
           )}
 
+          {isTeacher && currentTab === 'learning-plans' && (
+            <LearningPlanManager
+              initialSubjectId={navSubjectId}
+              onShowToast={showToast}
+            />
+          )}
+
           {/* Student Views */}
           {!isTeacher && currentTab === 'student-dashboard' && (
             <StudentDashboard
@@ -223,6 +236,20 @@ const MainLayout: React.FC = () => {
               selectedSubjectId={navSubjectId}
               onBack={() => setCurrentTab('student-dashboard')}
               onOpenSimulator={handleOpenSimulator}
+              onNavigateToLearningPlan={(subjId) => {
+                setNavSubjectId(subjId);
+                setCurrentTab('student-learning-plans');
+              }}
+            />
+          )}
+
+          {!isTeacher && currentTab === 'student-learning-plans' && (
+            <StudentLearningPlanView
+              initialSubjectId={navSubjectId}
+              onNavigateToScores={(subjId) => {
+                setNavSubjectId(subjId);
+                setCurrentTab('student-subjects');
+              }}
             />
           )}
 

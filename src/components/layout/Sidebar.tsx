@@ -12,10 +12,11 @@ import {
   Calculator,
   PieChart,
   UserCog,
+  Sparkles,
 } from 'lucide-react';
 
-export type TeacherTab = 'dashboard' | 'sections' | 'subjects' | 'gradebook' | 'attendance' | 'students' | 'faculty';
-export type StudentTab = 'student-dashboard' | 'student-subjects' | 'student-matrix' | 'student-simulator';
+export type TeacherTab = 'dashboard' | 'sections' | 'subjects' | 'learning-plans' | 'gradebook' | 'attendance' | 'students' | 'faculty';
+export type StudentTab = 'student-dashboard' | 'student-subjects' | 'student-learning-plans' | 'student-matrix' | 'student-simulator';
 
 interface SidebarProps {
   currentTab: string;
@@ -29,6 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'sections', label: 'Classes & Sections', icon: <Layers className="w-4 h-4" /> },
     { id: 'subjects', label: 'Subjects & Matrix', icon: <Sliders className="w-4 h-4" /> },
+    { id: 'learning-plans', label: 'AI Learning Plans', icon: <Sparkles className="w-4 h-4" /> },
     { id: 'gradebook', label: 'Gradebook Sheet', icon: <Table className="w-4 h-4" /> },
     { id: 'attendance', label: 'Attendance Roll', icon: <CalendarCheck className="w-4 h-4" /> },
     { id: 'students', label: 'Student Directory', icon: <Users2 className="w-4 h-4" /> },
@@ -38,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
   const studentItems = [
     { id: 'student-dashboard', label: 'My Academic Hub', icon: <GraduationCap className="w-4 h-4" /> },
     { id: 'student-subjects', label: 'Records & Scores', icon: <BookOpenCheck className="w-4 h-4" /> },
+    { id: 'student-learning-plans', label: 'Course Learning Plans', icon: <Sparkles className="w-4 h-4" /> },
     { id: 'student-matrix', label: 'Grading Matrices', icon: <PieChart className="w-4 h-4" /> },
     { id: 'student-simulator', label: 'Grade Simulator', icon: <Calculator className="w-4 h-4" /> },
   ];

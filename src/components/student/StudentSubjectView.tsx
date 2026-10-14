@@ -22,12 +22,14 @@ import {
   ArrowLeft,
   Award,
   Layers,
+  Sparkles,
 } from 'lucide-react';
 
 interface StudentSubjectViewProps {
   selectedSubjectId?: string;
   onBack: () => void;
   onOpenSimulator: (subjectId: string) => void;
+  onNavigateToLearningPlan?: (subjectId: string) => void;
 }
 
 type PeriodTabMode = 'all-semestral' | GradingPeriod;
@@ -37,6 +39,7 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
   selectedSubjectId,
   onBack,
   onOpenSimulator,
+  onNavigateToLearningPlan,
 }) => {
   const { currentUser } = useAuth();
   const { allUsers, subjects, assessments, scores, attendance } = useData();
@@ -265,6 +268,18 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
               </option>
             ))}
           </select>
+
+          {onNavigateToLearningPlan && (
+            <NeuButton
+              variant="secondary"
+              size="sm"
+              onClick={() => onNavigateToLearningPlan(currentSubject.id)}
+              leftIcon={<Sparkles className="w-3.5 h-3.5 text-[#F97316]" />}
+              className="w-full sm:w-auto justify-center"
+            >
+              Weekly Learning Plan
+            </NeuButton>
+          )}
 
           <NeuButton
             variant="primary"

@@ -11,6 +11,8 @@ import {
   GradingMatrixTemplate,
   GradingPeriod,
   Holiday,
+  LearningPlan,
+  WeeklyTopic,
 } from '../types';
 import {
   INITIAL_USERS,
@@ -41,6 +43,7 @@ interface DataContextType {
   allUsers: User[];
   matrixTemplates: GradingMatrixTemplate[];
   holidays: Holiday[];
+  learningPlans: LearningPlan[];
 
   // Faculty
   addTeacher: (teacher: Omit<User, 'id' | 'role'>, initialPassword?: string, mustChangePassword?: boolean) => User;
@@ -100,6 +103,14 @@ interface DataContextType {
   updateStudent: (id: string, data: Partial<User>) => void;
   deleteStudent: (id: string) => void;
   resetUserPassword: (userId: string) => Promise<{ success: boolean; initialPassword: string; error?: string; user?: User }>;
+
+  // AI Learning Plans & Syllabus
+  saveLearningPlan: (plan: LearningPlan) => void;
+  updateWeeklyTopic: (subjectId: string, topicId: string, updates: Partial<WeeklyTopic>) => void;
+  toggleWeeklyTopicPublish: (subjectId: string, topicId: string, isPublished: boolean) => void;
+  toggleAllWeeklyTopicsPublish: (subjectId: string, isPublished: boolean) => void;
+  deleteLearningPlan: (subjectId: string) => void;
+  getLearningPlanBySubjectId: (subjectId: string) => LearningPlan | undefined;
 
   // Backup & Reset & Sync
   resetToDefault: () => void;
@@ -202,9 +213,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(`${STORAGE_KEY}_holidays`, JSON.stringify(holidays));
   }, [holidays]);
 
+  const [learningPlans, setLearningPlans] = useState<LearningPlan[]>(() => {
+    return getInitialData('learning_plans', []);
+  });
+
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(allUsers));
   }, [allUsers]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_learning_plans`, JSON.stringify(learningPlans));
+  }, [learningPlans]);
 
   // Pull authoritative remote data directly from Supabase cloud
   const pullFromCloud = useCallback(async () => {
@@ -1198,6 +1217,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem(`${STORAGE_KEY}_attendance`);
     localStorage.removeItem(`${STORAGE_KEY}_holidays`);
     localStorage.removeItem(`${STORAGE_KEY}_users`);
+    localStorage.removeItem(`${STORAGE_KEY}_learning_plans`);
 
     setMatrixTemplates(INITIAL_GLOBAL_TEMPLATES);
     setSections(INITIAL_SECTIONS);
@@ -1207,7 +1227,69 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAttendanceRecords(INITIAL_ATTENDANCE);
     setHolidays(INITIAL_HOLIDAYS);
     setAllUsers(INITIAL_USERS);
+    setLearningPlans([]);
   };
+
+  const saveLearningPlan = useCallback((plan: LearningPlan) => {
+    setLearningPlans((prev) => {
+      const existingIndex = prev.findIndex((p) => p.subjectId === plan.subjectId);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = { ...plan, updatedAt: new Date().toISOString() };
+        return updated;
+      }
+      return [...prev, { ...plan, updatedAt: new Date().toISOString() }];
+    });
+  }, []);
+
+  const updateWeeklyTopic = useCallback((subjectId: string, topicId: string, updates: Partial<WeeklyTopic>) => {
+    setLearningPlans((prev) =>
+      prev.map((plan) => {
+        if (plan.subjectId !== subjectId) return plan;
+        const updatedTopics = plan.weeklyTopics.map((topic) =>
+          topic.id === topicId ? { ...topic, ...updates, updatedAt: new Date().toISOString() } : topic
+        );
+        return { ...plan, weeklyTopics: updatedTopics, updatedAt: new Date().toISOString() };
+      })
+    );
+  }, []);
+
+  const toggleWeeklyTopicPublish = useCallback((subjectId: string, topicId: string, isPublished: boolean) => {
+    setLearningPlans((prev) =>
+      prev.map((plan) => {
+        if (plan.subjectId !== subjectId) return plan;
+        const updatedTopics = plan.weeklyTopics.map((topic) =>
+          topic.id === topicId ? { ...topic, isPublished, updatedAt: new Date().toISOString() } : topic
+        );
+        return { ...plan, weeklyTopics: updatedTopics, updatedAt: new Date().toISOString() };
+      })
+    );
+  }, []);
+
+  const toggleAllWeeklyTopicsPublish = useCallback((subjectId: string, isPublished: boolean) => {
+    setLearningPlans((prev) =>
+      prev.map((plan) => {
+        if (plan.subjectId !== subjectId) return plan;
+        const updatedTopics = plan.weeklyTopics.map((topic) => ({
+          ...topic,
+          isPublished,
+          updatedAt: new Date().toISOString(),
+        }));
+        return { ...plan, weeklyTopics: updatedTopics, updatedAt: new Date().toISOString() };
+      })
+    );
+  }, []);
+
+  const deleteLearningPlan = useCallback((subjectId: string) => {
+    setLearningPlans((prev) => prev.filter((p) => p.subjectId !== subjectId));
+  }, []);
+
+  const getLearningPlanBySubjectId = useCallback(
+    (subjectId: string) => {
+      return learningPlans.find((p) => p.subjectId === subjectId);
+    },
+    [learningPlans]
+  );
 
   const getRawData = () => ({
     templates: matrixTemplates,
@@ -1218,6 +1300,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     attendance,
     holidays,
     allUsers,
+    learningPlans,
   });
 
   const importData = (jsonData: string): boolean => {
@@ -1231,6 +1314,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (parsed.attendance) setAttendanceRecords(parsed.attendance);
       if (parsed.holidays) setHolidays(parsed.holidays);
       if (parsed.allUsers) setAllUsers(parsed.allUsers);
+      if (parsed.learningPlans) setLearningPlans(parsed.learningPlans);
       return true;
     } catch (e) {
       console.error('Failed to import JSON data', e);
@@ -1251,6 +1335,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         allUsers,
         matrixTemplates,
         holidays,
+        learningPlans,
+        saveLearningPlan,
+        updateWeeklyTopic,
+        toggleWeeklyTopicPublish,
+        toggleAllWeeklyTopicsPublish,
+        deleteLearningPlan,
+        getLearningPlanBySubjectId,
         addTeacher,
         updateTeacher,
         deleteTeacher,
