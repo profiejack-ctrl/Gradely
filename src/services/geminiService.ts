@@ -1,8 +1,8 @@
 import { Subject, LearningPlan, WeeklyTopic, GradingPeriod } from '../types';
 
 export const GEMINI_STORAGE_KEY = 'gradely_gemini_api_key';
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
-export const FALLBACK_GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+export const FALLBACK_GEMINI_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
 
 /**
  * Retrieves the configured Google Gemini API Key from localStorage or environment variables
@@ -43,6 +43,30 @@ export function clearGeminiApiKey(): void {
   }
 }
 
+export const GEMINI_MODEL_STORAGE_KEY = 'gradely_gemini_model';
+
+/**
+ * Retrieves the preferred Gemini model (defaults to gemini-3.5-flash-lite)
+ */
+export function getPreferredGeminiModel(): string {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(GEMINI_MODEL_STORAGE_KEY);
+    if (stored && stored.trim().length > 0) {
+      return stored.trim();
+    }
+  }
+  return DEFAULT_GEMINI_MODEL;
+}
+
+/**
+ * Sets the preferred Gemini model
+ */
+export function setPreferredGeminiModel(model: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(GEMINI_MODEL_STORAGE_KEY, model.trim());
+  }
+}
+
 /**
  * Checks whether an API key is available
  */
@@ -59,7 +83,10 @@ export async function testGeminiApiKey(keyToTest?: string): Promise<{ success: b
     return { success: false, message: 'No Gemini API key provided.' };
   }
 
-  for (const model of FALLBACK_GEMINI_MODELS) {
+  const preferredModel = getPreferredGeminiModel();
+  const modelsToTry = [preferredModel, ...FALLBACK_GEMINI_MODELS.filter((m) => m !== preferredModel)];
+
+  for (const model of modelsToTry) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const response = await fetch(url, {
@@ -207,7 +234,10 @@ Please analyze this syllabus and return the structured JSON learning plan for al
 
   let lastError: Error | null = null;
 
-  for (const model of FALLBACK_GEMINI_MODELS) {
+  const preferredModel = getPreferredGeminiModel();
+  const modelsToTry = [preferredModel, ...FALLBACK_GEMINI_MODELS.filter((m) => m !== preferredModel)];
+
+  for (const model of modelsToTry) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 

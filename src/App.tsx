@@ -128,7 +128,7 @@ const MainLayout: React.FC = () => {
       <Navbar onShowToast={showToast} />
 
       {/* Main App Container */}
-      <div className="max-w-7xl w-full mx-auto px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 lg:px-6 lg:py-6 flex-1 flex flex-col md:flex-row gap-4 md:gap-5 lg:gap-6">
+      <div className="max-w-8xl w-full mx-auto px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 lg:px-6 lg:py-6 flex-1 flex flex-col md:flex-row gap-4 md:gap-5 lg:gap-6">
         {/* Navigation Sidebar */}
         <Sidebar currentTab={currentTab} onSelectTab={(tab) => setCurrentTab(tab)} />
 

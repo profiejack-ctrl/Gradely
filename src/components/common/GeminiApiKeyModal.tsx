@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { NeuModal } from './NeuModal';
 import { NeuButton } from './NeuButton';
-import { NeuInput } from './NeuInput';
-import { NeuBadge } from './NeuBadge';
+import { NeuInput, NeuSelect } from './NeuInput';
 import {
   getGeminiApiKey,
   setGeminiApiKey,
   testGeminiApiKey,
   hasGeminiApiKey,
   DEFAULT_GEMINI_MODEL,
+  getPreferredGeminiModel,
+  setPreferredGeminiModel,
 } from '../../services/geminiService';
 import { Key, Sparkles, CheckCircle2, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react';
 
@@ -26,12 +27,14 @@ export const GeminiApiKeyModal: React.FC<GeminiApiKeyModalProps> = ({
   onShowToast,
 }) => {
   const [apiKey, setApiKey] = useState('');
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_GEMINI_MODEL);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; model?: string } | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setApiKey(getGeminiApiKey());
+      setSelectedModel(getPreferredGeminiModel());
       setTestResult(null);
     }
   }, [isOpen]);
@@ -58,7 +61,8 @@ export const GeminiApiKeyModal: React.FC<GeminiApiKeyModalProps> = ({
 
   const handleSave = () => {
     setGeminiApiKey(apiKey);
-    onShowToast('API Key Saved', 'Gemini AI agent is now configured and ready to analyze syllabi.', 'success');
+    setPreferredGeminiModel(selectedModel);
+    onShowToast('Configuration Saved', `Gemini AI configured with ${selectedModel}.`, 'success');
     if (onSaved) onSaved();
     onClose();
   };
@@ -146,15 +150,30 @@ export const GeminiApiKeyModal: React.FC<GeminiApiKeyModalProps> = ({
           </div>
         )}
 
-        {/* Model Info Badge */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 text-xs">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#F97316]" />
-            <span className="font-semibold text-slate-700 dark:text-slate-200">Default Model</span>
-          </div>
-          <NeuBadge variant="primary" size="sm">
-            {DEFAULT_GEMINI_MODEL}
-          </NeuBadge>
+        {/* Model Selector */}
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#F97316]" />
+              <span>Gemini AI Model</span>
+            </span>
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold lowercase">
+              fast & low-cost
+            </span>
+          </label>
+          <NeuSelect
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            options={[
+              { value: 'gemini-3.5-flash-lite', label: 'gemini-3.5-flash-lite (Default / Ultra-Fast)' },
+              { value: 'gemini-3.5-flash', label: 'gemini-3.5-flash (Balanced Multimodal)' },
+              { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash (Standard Flash)' },
+              { value: 'gemini-1.5-flash', label: 'gemini-1.5-flash (Legacy Compatibility)' },
+            ]}
+          />
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+            <strong>gemini-3.5-flash-lite</strong> is Google's high-speed, cost-efficient 3.5 model designed for high-throughput academic execution.
+          </p>
         </div>
 
         {/* Action Buttons */}

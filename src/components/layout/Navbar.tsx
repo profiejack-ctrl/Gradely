@@ -68,7 +68,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/80 dark:bg-[#070b14]/85 backdrop-blur-xl border-b border-slate-200/90 dark:border-slate-800/80 py-2.5 px-4 sm:px-6 md:px-8 transition-colors duration-200 shadow-xs">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <div className="max-w-8xl mx-auto flex items-center justify-between gap-4">
         {/* Gradely Brand Logo & Tagline */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#0d1424] p-1 border border-slate-200/90 dark:border-slate-800 shadow-xs flex items-center justify-center shrink-0">
