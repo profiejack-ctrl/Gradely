@@ -28,7 +28,9 @@ import {
   Plus,
   RefreshCw,
   Key,
+  Users,
 } from 'lucide-react';
+import { normalizeCourseCode } from '../../utils/enrollmentUtils';
 
 interface LearningPlanManagerProps {
   initialSubjectId?: string;
@@ -41,6 +43,7 @@ export const LearningPlanManager: React.FC<LearningPlanManagerProps> = ({
 }) => {
   const { currentUser, isDean } = useAuth();
   const {
+    sections,
     subjects,
     saveLearningPlan,
     updateWeeklyTopic,
@@ -54,20 +57,72 @@ export const LearningPlanManager: React.FC<LearningPlanManagerProps> = ({
     ? subjects
     : subjects.filter((s) => s.teacherId === currentUser?.id);
 
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
-    initialSubjectId || accessibleSubjects[0]?.id || ''
-  );
+  interface CourseGroup {
+    courseKey: string;
+    courseCode: string;
+    courseTitle: string;
+    subjects: Subject[];
+    primarySubject: Subject;
+    sectionNames: string[];
+  }
+
+  // Deduplicate and group accessible subjects by Course Code
+  // Multiple sections taking the same course share the same syllabus and weekly topics!
+  const courseGroups = React.useMemo(() => {
+    const map = new Map<string, CourseGroup>();
+
+    accessibleSubjects.forEach((subj) => {
+      const key = normalizeCourseCode(subj.code, subj.name) || subj.id;
+      const section = sections.find((sec) => sec.id === subj.sectionId);
+      const sectionName = section?.name || 'Unassigned';
+
+      if (!map.has(key)) {
+        map.set(key, {
+          courseKey: key,
+          courseCode: subj.code || key,
+          courseTitle: subj.name,
+          subjects: [subj],
+          primarySubject: subj,
+          sectionNames: sectionName !== 'Unassigned' ? [sectionName] : [],
+        });
+      } else {
+        const group = map.get(key)!;
+        group.subjects.push(subj);
+        if (sectionName !== 'Unassigned' && !group.sectionNames.includes(sectionName)) {
+          group.sectionNames.push(sectionName);
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [accessibleSubjects, sections]);
+
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(() => {
+    if (initialSubjectId) return initialSubjectId;
+    return accessibleSubjects[0]?.id || '';
+  });
 
   React.useEffect(() => {
-    if (initialSubjectId && accessibleSubjects.some((s) => s.id === initialSubjectId)) {
-      setSelectedSubjectId(initialSubjectId);
-    } else if (accessibleSubjects.length > 0 && !accessibleSubjects.some((s) => s.id === selectedSubjectId)) {
-      setSelectedSubjectId(accessibleSubjects[0].id);
+    if (initialSubjectId) {
+      const matchedGroup = courseGroups.find(
+        (g) => g.subjects.some((s) => s.id === initialSubjectId) || g.courseKey === initialSubjectId
+      );
+      if (matchedGroup) {
+        setSelectedSubjectId(matchedGroup.primarySubject.id);
+        return;
+      }
     }
-  }, [initialSubjectId, accessibleSubjects, selectedSubjectId]);
+    if (courseGroups.length > 0 && !courseGroups.some((g) => g.subjects.some((s) => s.id === selectedSubjectId))) {
+      setSelectedSubjectId(courseGroups[0].primarySubject.id);
+    }
+  }, [initialSubjectId, courseGroups, selectedSubjectId]);
+
+  const activeCourseGroup: CourseGroup | undefined =
+    courseGroups.find((g) => g.subjects.some((s) => s.id === selectedSubjectId)) ||
+    courseGroups[0];
 
   const activeSubject: Subject | undefined =
-    accessibleSubjects.find((s) => s.id === selectedSubjectId) || accessibleSubjects[0];
+    activeCourseGroup?.primarySubject || accessibleSubjects[0];
 
   const currentPlan: LearningPlan | undefined = activeSubject
     ? getLearningPlanBySubjectId(activeSubject.id)
@@ -302,16 +357,19 @@ export const LearningPlanManager: React.FC<LearningPlanManagerProps> = ({
           </p>
         </div>
 
-        {/* Subject Selector & Settings Buttons */}
+        {/* Course / Subject Selector & Settings Buttons */}
         <div className="flex items-center flex-wrap gap-2.5">
-          <div className="w-56 sm:w-64">
+          <div className="w-64 sm:w-80 md:w-96">
             <NeuSelect
-              value={selectedSubjectId}
+              value={activeCourseGroup?.primarySubject.id || selectedSubjectId}
               onChange={(e) => setSelectedSubjectId(e.target.value)}
-              options={accessibleSubjects.map((s) => ({
-                value: s.id,
-                label: `${s.code} - ${s.name}`,
-              }))}
+              options={courseGroups.map((g) => {
+                const sectionList = g.sectionNames.length > 0 ? ` (${g.sectionNames.join(', ')})` : '';
+                return {
+                  value: g.primarySubject.id,
+                  label: `${g.courseCode} - ${g.courseTitle}${sectionList}`,
+                };
+              })}
             />
           </div>
 
@@ -326,6 +384,45 @@ export const LearningPlanManager: React.FC<LearningPlanManagerProps> = ({
           </NeuButton>
         </div>
       </div>
+
+      {/* Shared Course & Sections Synchronized Banner */}
+      {activeCourseGroup && (
+        <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-3 rounded-2xl bg-white/80 dark:bg-[#0d1424]/80 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 text-xs shadow-2xs print:hidden">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200">
+              <Users className="w-4 h-4 text-[#F97316]" />
+              <span>
+                {activeCourseGroup.sectionNames.length > 1 ? 'Enrolled Sections (Shared Syllabus):' : 'Enrolled Section:'}
+              </span>
+            </div>
+            {activeCourseGroup.sectionNames.length > 0 ? (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {activeCourseGroup.sectionNames.map((secName) => (
+                  <span
+                    key={secName}
+                    className="px-2.5 py-0.5 rounded-lg bg-orange-100 dark:bg-orange-950/60 text-[#c2410c] dark:text-orange-300 font-bold border border-orange-200 dark:border-orange-800 text-xs shadow-2xs"
+                  >
+                    {secName}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-slate-400 italic">No section assigned</span>
+            )}
+          </div>
+
+          {activeCourseGroup.sectionNames.length > 1 ? (
+            <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-semibold bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1 rounded-xl border border-emerald-200/80 dark:border-emerald-900/60">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>Topics & public visibility automatically sync across all {activeCourseGroup.sectionNames.length} sections</span>
+            </div>
+          ) : (
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+              Standard 18-week curriculum structure for {activeCourseGroup.courseCode}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* VIEW A: NO PLAN YET OR UPLOADER OVERLAY                                   */}
@@ -521,6 +618,27 @@ export const LearningPlanManager: React.FC<LearningPlanManagerProps> = ({
                   <div className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-1">
                     <span className="font-semibold text-slate-700 dark:text-slate-400">Prerequisites:</span>
                     <span>{currentPlan.prerequisites}</span>
+                  </div>
+                )}
+                {activeCourseGroup && activeCourseGroup.sectionNames.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1 text-xs">
+                    <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Enrolled Sections:</span>
+                    </span>
+                    {activeCourseGroup.sectionNames.map((name) => (
+                      <span
+                        key={name}
+                        className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-[#1E3A8A] dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-900 text-[11px]"
+                      >
+                        {name}
+                      </span>
+                    ))}
+                    {activeCourseGroup.sectionNames.length > 1 && (
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold ml-1">
+                        • Shared Syllabus & Synchronized Topics
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

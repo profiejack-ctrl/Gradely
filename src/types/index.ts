@@ -173,6 +173,7 @@ export interface WeeklyTopic {
 export interface LearningPlan {
   id: string;
   subjectId: string;
+  subjectIds?: string[];       // Associated section subject IDs that share this curriculum
   courseTitle: string;
   courseCode: string;
   description?: string;        // Course summary / description

@@ -30,6 +30,7 @@ import {
   encodeSectionDescription,
   formatSectionIds,
   getStudentSectionIds,
+  normalizeCourseCode,
 } from '../utils/enrollmentUtils';
 
 interface DataContextType {
@@ -1230,65 +1231,143 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLearningPlans([]);
   };
 
-  const saveLearningPlan = useCallback((plan: LearningPlan) => {
-    setLearningPlans((prev) => {
-      const existingIndex = prev.findIndex((p) => p.subjectId === plan.subjectId);
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = { ...plan, updatedAt: new Date().toISOString() };
-        return updated;
-      }
-      return [...prev, { ...plan, updatedAt: new Date().toISOString() }];
-    });
-  }, []);
+  // Shared helper: Checks whether a learning plan corresponds to a given subject (by ID, courseCode, or peer section)
+  const isPlanForSubject = useCallback(
+    (plan: LearningPlan, subjId: string): boolean => {
+      if (!plan || !subjId) return false;
+      if (plan.subjectId === subjId) return true;
+      if (plan.subjectIds && plan.subjectIds.includes(subjId)) return true;
 
-  const updateWeeklyTopic = useCallback((subjectId: string, topicId: string, updates: Partial<WeeklyTopic>) => {
-    setLearningPlans((prev) =>
-      prev.map((plan) => {
-        if (plan.subjectId !== subjectId) return plan;
-        const updatedTopics = plan.weeklyTopics.map((topic) =>
-          topic.id === topicId ? { ...topic, ...updates, updatedAt: new Date().toISOString() } : topic
+      const targetSubj = subjects.find((s) => s.id === subjId);
+      if (!targetSubj) return false;
+
+      const targetCode = normalizeCourseCode(targetSubj.code, targetSubj.name);
+      if (!targetCode) return false;
+
+      const planCode = normalizeCourseCode(plan.courseCode, plan.courseTitle);
+      if (planCode && planCode === targetCode) return true;
+
+      const planSubj = subjects.find((s) => s.id === plan.subjectId);
+      if (planSubj && normalizeCourseCode(planSubj.code, planSubj.name) === targetCode) return true;
+
+      return false;
+    },
+    [subjects]
+  );
+
+  const saveLearningPlan = useCallback(
+    (plan: LearningPlan) => {
+      setLearningPlans((prev) => {
+        const targetSubj = subjects.find((s) => s.id === plan.subjectId);
+        const courseKey = normalizeCourseCode(
+          plan.courseCode || targetSubj?.code,
+          plan.courseTitle || targetSubj?.name
         );
-        return { ...plan, weeklyTopics: updatedTopics, updatedAt: new Date().toISOString() };
-      })
-    );
-  }, []);
 
-  const toggleWeeklyTopicPublish = useCallback((subjectId: string, topicId: string, isPublished: boolean) => {
-    setLearningPlans((prev) =>
-      prev.map((plan) => {
-        if (plan.subjectId !== subjectId) return plan;
-        const updatedTopics = plan.weeklyTopics.map((topic) =>
-          topic.id === topicId ? { ...topic, isPublished, updatedAt: new Date().toISOString() } : topic
+        // Find all subjects that share this same course code across all sections
+        const matchingSubjects = subjects.filter(
+          (s) => normalizeCourseCode(s.code, s.name) === courseKey
         );
-        return { ...plan, weeklyTopics: updatedTopics, updatedAt: new Date().toISOString() };
-      })
-    );
-  }, []);
+        const linkedSubjectIds = Array.from(
+          new Set([plan.subjectId, ...(plan.subjectIds || []), ...matchingSubjects.map((s) => s.id)])
+        ).filter(Boolean);
 
-  const toggleAllWeeklyTopicsPublish = useCallback((subjectId: string, isPublished: boolean) => {
-    setLearningPlans((prev) =>
-      prev.map((plan) => {
-        if (plan.subjectId !== subjectId) return plan;
-        const updatedTopics = plan.weeklyTopics.map((topic) => ({
-          ...topic,
-          isPublished,
+        const enrichedPlan: LearningPlan = {
+          ...plan,
+          courseCode: plan.courseCode || targetSubj?.code || 'COURSE',
+          courseTitle: plan.courseTitle || targetSubj?.name || 'Course Title',
+          subjectIds: linkedSubjectIds,
           updatedAt: new Date().toISOString(),
-        }));
-        return { ...plan, weeklyTopics: updatedTopics, updatedAt: new Date().toISOString() };
-      })
-    );
-  }, []);
+        };
 
-  const deleteLearningPlan = useCallback((subjectId: string) => {
-    setLearningPlans((prev) => prev.filter((p) => p.subjectId !== subjectId));
-  }, []);
+        const existingIdx = prev.findIndex(
+          (p) =>
+            p.id === plan.id ||
+            p.subjectId === plan.subjectId ||
+            isPlanForSubject(p, plan.subjectId) ||
+            (courseKey && normalizeCourseCode(p.courseCode, p.courseTitle) === courseKey)
+        );
+
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          updated[existingIdx] = enrichedPlan;
+          // Filter out any other duplicate plans with the same course key
+          return updated.filter(
+            (p, idx) =>
+              idx === existingIdx ||
+              normalizeCourseCode(p.courseCode, p.courseTitle) !== courseKey
+          );
+        }
+
+        return [...prev, enrichedPlan];
+      });
+    },
+    [subjects, isPlanForSubject]
+  );
+
+  const updateWeeklyTopic = useCallback(
+    (subjectId: string, topicId: string, updates: Partial<WeeklyTopic>) => {
+      setLearningPlans((prev) =>
+        prev.map((plan) => {
+          if (!isPlanForSubject(plan, subjectId)) return plan;
+          const updatedTopics = plan.weeklyTopics.map((topic) =>
+            topic.id === topicId ? { ...topic, ...updates, updatedAt: new Date().toISOString() } : topic
+          );
+          return { ...plan, weeklyTopics: updatedTopics, updatedAt: new Date().toISOString() };
+        })
+      );
+    },
+    [isPlanForSubject]
+  );
+
+  const toggleWeeklyTopicPublish = useCallback(
+    (subjectId: string, topicId: string, isPublished: boolean) => {
+      setLearningPlans((prev) =>
+        prev.map((plan) => {
+          if (!isPlanForSubject(plan, subjectId)) return plan;
+          const updatedTopics = plan.weeklyTopics.map((topic) =>
+            topic.id === topicId ? { ...topic, isPublished, updatedAt: new Date().toISOString() } : topic
+          );
+          return { ...plan, weeklyTopics: updatedTopics, updatedAt: new Date().toISOString() };
+        })
+      );
+    },
+    [isPlanForSubject]
+  );
+
+  const toggleAllWeeklyTopicsPublish = useCallback(
+    (subjectId: string, isPublished: boolean) => {
+      setLearningPlans((prev) =>
+        prev.map((plan) => {
+          if (!isPlanForSubject(plan, subjectId)) return plan;
+          const updatedTopics = plan.weeklyTopics.map((topic) => ({
+            ...topic,
+            isPublished,
+            updatedAt: new Date().toISOString(),
+          }));
+          return { ...plan, weeklyTopics: updatedTopics, updatedAt: new Date().toISOString() };
+        })
+      );
+    },
+    [isPlanForSubject]
+  );
+
+  const deleteLearningPlan = useCallback(
+    (subjectId: string) => {
+      setLearningPlans((prev) => prev.filter((p) => !isPlanForSubject(p, subjectId)));
+    },
+    [isPlanForSubject]
+  );
 
   const getLearningPlanBySubjectId = useCallback(
     (subjectId: string) => {
-      return learningPlans.find((p) => p.subjectId === subjectId);
+      // Direct ID match first
+      const direct = learningPlans.find((p) => p.subjectId === subjectId);
+      if (direct) return direct;
+      // Multi-section shared course match
+      return learningPlans.find((p) => isPlanForSubject(p, subjectId));
     },
-    [learningPlans]
+    [learningPlans, isPlanForSubject]
   );
 
   const getRawData = () => ({

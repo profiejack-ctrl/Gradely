@@ -120,3 +120,17 @@ export function getStudentEnrolledSubjects(
   return Array.from(matchedSubjectsMap.values());
 }
 
+/**
+ * Normalizes course codes for curriculum matching across multiple sections/cohorts.
+ * e.g., "IPT101", "IPT 101", "ipt-101", "IPT_101" -> "IPT101"
+ */
+export function normalizeCourseCode(code?: string, name?: string): string {
+  if (code && code.trim().length > 0) {
+    return code.trim().toUpperCase().replace(/[\s\-_]+/g, '');
+  }
+  if (name && name.trim().length > 0) {
+    return name.trim().toUpperCase().replace(/[\s\-_]+/g, '');
+  }
+  return '';
+}
+

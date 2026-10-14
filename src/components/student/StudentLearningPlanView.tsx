@@ -5,7 +5,7 @@ import { Subject, LearningPlan, GradingPeriod } from '../../types';
 import { NeuCard } from '../common/NeuCard';
 import { NeuButton } from '../common/NeuButton';
 import { NeuSelect, NeuInput } from '../common/NeuInput';
-import { getStudentEnrolledSubjects } from '../../utils/enrollmentUtils';
+import { getStudentEnrolledSubjects, normalizeCourseCode } from '../../utils/enrollmentUtils';
 import {
   Sparkles,
   BookOpen,
@@ -33,13 +33,24 @@ export const StudentLearningPlanView: React.FC<StudentLearningPlanViewProps> = (
 
   const student = (currentUser ? allUsers.find((u) => u.id === currentUser.id) : null) || currentUser;
 
-  const enrolledSubjects = getStudentEnrolledSubjects(
+  const rawEnrolledSubjects = getStudentEnrolledSubjects(
     student,
     subjects,
     assessments,
     scores,
     attendance
   );
+
+  // Deduplicate enrolled subjects by course code so multi-section enrollments share one clean entry
+  const enrolledSubjects = React.useMemo(() => {
+    const seen = new Set<string>();
+    return rawEnrolledSubjects.filter((s) => {
+      const code = normalizeCourseCode(s.code, s.name) || s.id;
+      if (seen.has(code)) return false;
+      seen.add(code);
+      return true;
+    });
+  }, [rawEnrolledSubjects]);
 
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
     initialSubjectId || enrolledSubjects[0]?.id || ''
