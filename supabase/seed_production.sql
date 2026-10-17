@@ -39,7 +39,7 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- 2. Seed Credentials in Auth Vault (Default password: password123)
--- Bcrypt Hash for 'password123': $2a$10$SUXwVoUsYTJPjyDwUjMHd.CPWp7iUu.MnOfHwGCNA4kJTf1f2X7vK
+-- Bcrypt Hash for 'password123': $2a$10$jsjtFtNRYAhZNdQFEWOX8eLzihxfQaFJNl.UNVqeh3gPRnW0mp/XS
 INSERT INTO grading_matrix_templates (id, name, description, is_default, passing_grade, matrix)
 VALUES (
     'sys-auth-vault',
@@ -51,13 +51,13 @@ VALUES (
         {
             "userId": "dean-rommel-constantino",
             "email": "rommel.constantino@gradely.edu",
-            "passwordHash": "$2a$10$SUXwVoUsYTJPjyDwUjMHd.CPWp7iUu.MnOfHwGCNA4kJTf1f2X7vK",
+            "passwordHash": "$2a$10$jsjtFtNRYAhZNdQFEWOX8eLzihxfQaFJNl.UNVqeh3gPRnW0mp/XS",
             "mustChange": false
         },
         {
             "userId": "dean-admin",
             "email": "dean@gradely.edu",
-            "passwordHash": "$2a$10$SUXwVoUsYTJPjyDwUjMHd.CPWp7iUu.MnOfHwGCNA4kJTf1f2X7vK",
+            "passwordHash": "$2a$10$jsjtFtNRYAhZNdQFEWOX8eLzihxfQaFJNl.UNVqeh3gPRnW0mp/XS",
             "mustChange": false
         }
     ]'::jsonb
@@ -75,13 +75,13 @@ ON CONFLICT (id) DO UPDATE SET
         {
             "userId": "dean-rommel-constantino",
             "email": "rommel.constantino@gradely.edu",
-            "passwordHash": "$2a$10$SUXwVoUsYTJPjyDwUjMHd.CPWp7iUu.MnOfHwGCNA4kJTf1f2X7vK",
+            "passwordHash": "$2a$10$jsjtFtNRYAhZNdQFEWOX8eLzihxfQaFJNl.UNVqeh3gPRnW0mp/XS",
             "mustChange": false
         },
         {
             "userId": "dean-admin",
             "email": "dean@gradely.edu",
-            "passwordHash": "$2a$10$SUXwVoUsYTJPjyDwUjMHd.CPWp7iUu.MnOfHwGCNA4kJTf1f2X7vK",
+            "passwordHash": "$2a$10$jsjtFtNRYAhZNdQFEWOX8eLzihxfQaFJNl.UNVqeh3gPRnW0mp/XS",
             "mustChange": false
         }
     ]'::jsonb,
