@@ -39,6 +39,7 @@ import {
   GraduationCap,
   ChevronDown,
   FileSpreadsheet,
+  Zap,
 } from 'lucide-react';
 import { compareByLastName, formatLastFirst } from '../../utils/nameUtils';
 import { isStudentInSection } from '../../utils/enrollmentUtils';
@@ -447,6 +448,30 @@ export const Gradebook: React.FC<GradebookProps> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const nextState = !(activeSubject.useTransmutation !== false);
+              updateSubjectMatrix(activeSubject.id, activeSubject.matrix, activeSubject.passingGrade, nextState);
+              onShowToast(
+                nextState ? 'Transmutation Enabled' : 'Transmutation Disabled',
+                nextState
+                  ? 'Grades are now transmuted using official BCP Annex A (50% = 75 Passing).'
+                  : 'Grades are now calculated using exact raw percentages.',
+                'info'
+              );
+            }}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              activeSubject.useTransmutation !== false
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+            title="Click to toggle between BCP Annex A Transmutation and Raw Percentage"
+          >
+            <Zap className={`w-3.5 h-3.5 ${activeSubject.useTransmutation !== false ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
+            <span>Transmutation: {activeSubject.useTransmutation !== false ? 'ON (BCP Annex A)' : 'OFF (Raw %)'}</span>
+          </button>
+
           <NeuButton
             variant="secondary"
             size="sm"
@@ -735,6 +760,11 @@ export const Gradebook: React.FC<GradebookProps> = ({
                             >
                               {perf.finalGrade}%
                             </span>
+                            {perf.useTransmutation && perf.rawFinalGrade !== undefined && (
+                              <div className="text-[10px] text-slate-400 font-normal">
+                                Raw: {perf.rawFinalGrade}%
+                              </div>
+                            )}
                           </td>
 
                           {/* Grade Equivalent */}
@@ -1154,6 +1184,11 @@ export const Gradebook: React.FC<GradebookProps> = ({
                               >
                                 {periodSumm.grade}%
                               </span>
+                              {periodSumm.useTransmutation && periodSumm.hasRecords && periodSumm.rawGrade !== undefined && (
+                                <div className="text-[10px] text-slate-400 font-normal">
+                                  Raw: {periodSumm.rawGrade}%
+                                </div>
+                              )}
                             </td>
 
                             {/* Status */}
@@ -1200,8 +1235,8 @@ export const Gradebook: React.FC<GradebookProps> = ({
         isOpen={isMatrixModalOpen}
         onClose={() => setIsMatrixModalOpen(false)}
         subject={activeSubject}
-        onSave={(subjId, matrix, passGrade) => {
-          updateSubjectMatrix(subjId, matrix, passGrade);
+        onSave={(subjId, matrix, passGrade, useTransmute) => {
+          updateSubjectMatrix(subjId, matrix, passGrade, useTransmute);
           onShowToast('Matrix Saved', 'Grading weights updated for this course.', 'success');
         }}
       />

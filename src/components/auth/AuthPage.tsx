@@ -9,7 +9,6 @@ import {
   Sun,
   Moon,
   Cloud,
-  GraduationCap,
 } from 'lucide-react';
 import { NeuButton } from '../common/NeuButton';
 
@@ -27,7 +26,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Login form state
-  const [loginEmail, setLoginEmail] = useState('');
+  const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
   // Handle Login Submit
@@ -35,19 +34,26 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
     e.preventDefault();
     setErrorMessage(null);
 
-    if (!loginEmail.trim()) {
-      setErrorMessage('Please enter your Student ID, Email, or Username.');
+    if (!loginIdentifier.trim()) {
+      setErrorMessage('Please enter your Student ID or account email.');
+      return;
+    }
+
+    if (!loginPassword) {
+      setErrorMessage('Please enter your password.');
       return;
     }
 
     setIsSubmitting(true);
-    const res = await signIn(loginEmail, loginPassword);
+    const res = await signIn(loginIdentifier.trim(), loginPassword);
     setIsSubmitting(false);
 
     if (res.success) {
       onShowToast('Welcome to Gradely', 'Signed in successfully.', 'success');
     } else {
-      const err = res.error || 'Invalid credentials. Please verify your Student ID/Email and password.';
+      const err = res.error === 'Account credentials have not been provisioned'
+        ? 'Account credentials not found. If you are a student, sign in using your Student ID.'
+        : (res.error || 'Invalid credentials. Please verify your Student ID / Email and password.');
       setErrorMessage(err);
       onShowToast('Sign In Failed', err, 'error');
     }
@@ -120,17 +126,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                  <span>Student ID, Email, or Username</span>
-                  <span className="text-[10px] font-normal text-indigo-600 dark:text-indigo-400">Institutional ID</span>
+                  <span>Student ID or Account Email</span>
+                  <span className="text-[10px] font-normal text-indigo-600 dark:text-indigo-400">Default: Student ID</span>
                 </label>
                 <div className="relative">
                   <UserIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
                     type="text"
                     required
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="e.g. 22120613 or user@gradely.edu"
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    placeholder="e.g. 250102531 or user@gradely.edu"
                     className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
                   />
                 </div>
@@ -142,7 +148,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
                     Password
                   </label>
                   <span className="text-[10px] text-slate-400">
-                    1st Login: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-indigo-600 dark:text-indigo-400 font-mono">Student ID</code>
+                    Protected server login
                   </span>
                 </div>
                 <div className="relative">
@@ -165,6 +171,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
                 </div>
               </div>
 
+              {/* Student Default Credentials Tip */}
+              <div className="p-3 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-900/60 text-[11px] text-indigo-900 dark:text-indigo-200 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300">
+                  <span>Student Sign-In</span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Default credentials: <strong>User ID = Student ID</strong> and <strong>Password = Student ID</strong>. You will be required to create a new password and verify your personal email on first login.
+                </p>
+              </div>
+
               <NeuButton
                 type="submit"
                 variant="primary"
@@ -178,7 +194,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
             </form>
           </div>
 
-          {/* Institutional Provisioning Notice */}
+          {/* Institutional Provisioning Notice *
           <div className="p-4 rounded-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/70 dark:border-slate-800 text-center space-y-1">
             <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
               <GraduationCap className="w-4 h-4 text-slate-500" />
@@ -187,7 +203,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onShowToast }) => {
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Faculty and Student accounts are provisioned by the Department Head and Academic Administration.
             </p>
-          </div>
+          </div> */}
         </div>
       </main>
     </div>

@@ -24,8 +24,9 @@ import {
   INITIAL_GLOBAL_TEMPLATES,
   INITIAL_HOLIDAYS,
 } from '../data/initialData';
-import { syncEngine } from '../services/syncEngine';
-import { saveStoredCredential, USERS_STORAGE_KEY } from './AuthContext';
+import { syncEngine } from '../services/apiSyncEngine';
+import { teachersApi } from '../services/apiClient';
+import { USERS_STORAGE_KEY } from './AuthContext';
 import {
   encodeSectionDescription,
   formatSectionIds,
@@ -47,7 +48,7 @@ interface DataContextType {
   learningPlans: LearningPlan[];
 
   // Faculty
-  addTeacher: (teacher: Omit<User, 'id' | 'role'>, initialPassword?: string, mustChangePassword?: boolean) => User;
+  addTeacher: (teacher: Omit<User, 'id' | 'role'>, initialPassword?: string, mustChangePassword?: boolean) => Promise<User | null>;
   updateTeacher: (id: string, data: Partial<User>, newPassword?: string) => void;
   deleteTeacher: (id: string) => boolean;
 
@@ -60,7 +61,7 @@ interface DataContextType {
   addSubject: (subject: Omit<Subject, 'id'>) => Subject;
   updateSubject: (id: string, data: Partial<Subject>) => void;
   deleteSubject: (id: string) => void;
-  updateSubjectMatrix: (subjectId: string, matrix: MatrixCategory[], passingGrade?: number) => void;
+  updateSubjectMatrix: (subjectId: string, matrix: MatrixCategory[], passingGrade?: number, useTransmutation?: boolean) => void;
 
   // Global Templates
   saveMatrixTemplate: (template: Omit<GradingMatrixTemplate, 'id'>, idToUpdate?: string) => GradingMatrixTemplate;
@@ -101,7 +102,7 @@ interface DataContextType {
   // Students
   addStudent: (student: Omit<User, 'id' | 'role'>) => User;
   bulkAddStudents: (students: Omit<User, 'id' | 'role'>[]) => User[];
-  updateStudent: (id: string, data: Partial<User>) => void;
+  updateStudent: (id: string, data: Partial<User>, options?: { skipSync?: boolean }) => void;
   deleteStudent: (id: string) => void;
   resetUserPassword: (userId: string) => Promise<{ success: boolean; initialPassword: string; error?: string; user?: User }>;
 
@@ -154,7 +155,8 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [matrixTemplates, setMatrixTemplates] = useState<GradingMatrixTemplate[]>(() => {
     const rawTemplates: GradingMatrixTemplate[] = getInitialData('templates', INITIAL_GLOBAL_TEMPLATES);
-    return rawTemplates.filter((t) => !isDeprecatedTemplate(t.name, t.id));
+    const valid = rawTemplates.filter((t) => !isDeprecatedTemplate(t.name, t.id));
+    return valid.length > 0 ? valid : INITIAL_GLOBAL_TEMPLATES;
   });
 
   const [sections, setSections] = useState<Section[]>(() => {
@@ -162,7 +164,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [subjects, setSubjects] = useState<Subject[]>(() => {
-    return getInitialData('subjects', INITIAL_SUBJECTS);
+    const rawSubjects: Subject[] = getInitialData('subjects', INITIAL_SUBJECTS);
+    return rawSubjects.map((s) => {
+      let matrix = s.matrix || [];
+      let useTransmutation = s.useTransmutation !== undefined ? s.useTransmutation : true;
+      if (matrix && !Array.isArray(matrix) && typeof matrix === 'object') {
+        useTransmutation = (matrix as any).useTransmutation !== false;
+        matrix = (matrix as any).categories || [];
+      }
+      return {
+        ...s,
+        matrix,
+        useTransmutation,
+      };
+    });
   });
 
   const [assessments, setAssessments] = useState<Assessment[]>(() => {
@@ -228,6 +243,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Pull authoritative remote data directly from Supabase cloud
   const pullFromCloud = useCallback(async () => {
+    // If local mutations are queued or in flight, do not stomp pending local changes
+    if (syncEngine.getQueue().length > 0) return;
+
     const remote = await syncEngine.pullAll();
     if (!remote) return;
 
@@ -238,10 +256,23 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSections(remote.sections);
     }
     if (remote.matrixTemplates) {
-      setMatrixTemplates(remote.matrixTemplates.filter((t) => !isDeprecatedTemplate(t.name, t.id)));
+      const filtered = remote.matrixTemplates.filter((t: GradingMatrixTemplate) => !isDeprecatedTemplate(t.name, t.id));
+      setMatrixTemplates(filtered.length > 0 ? filtered : INITIAL_GLOBAL_TEMPLATES);
     }
     if (remote.subjects) {
-      setSubjects(remote.subjects);
+      setSubjects(remote.subjects.map((s: Subject) => {
+        let matrix = s.matrix || [];
+        let useTransmutation = s.useTransmutation !== undefined ? s.useTransmutation : true;
+        if (matrix && !Array.isArray(matrix) && typeof matrix === 'object') {
+          useTransmutation = (matrix as any).useTransmutation !== false;
+          matrix = (matrix as any).categories || [];
+        }
+        return {
+          ...s,
+          matrix,
+          useTransmutation,
+        };
+      }));
     }
     if (remote.assessments) {
       setAssessments(remote.assessments);
@@ -356,6 +387,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newSubj: Subject = {
       ...subjData,
       id: `subj-${Date.now().toString(36)}`,
+      useTransmutation: subjData.useTransmutation !== false,
     };
     setSubjects((prev) => [...prev, newSubj]);
     syncEngine.enqueue('subjects', 'UPSERT', {
@@ -367,7 +399,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       schedule: newSubj.schedule,
       units: newSubj.units,
       passing_grade: newSubj.passingGrade,
-      matrix: newSubj.matrix,
+      matrix: {
+        categories: newSubj.matrix,
+        useTransmutation: newSubj.useTransmutation !== false,
+      },
     });
     return newSubj;
   };
@@ -386,7 +421,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           schedule: target.schedule,
           units: target.units,
           passing_grade: target.passingGrade,
-          matrix: target.matrix,
+          matrix: {
+            categories: target.matrix,
+            useTransmutation: target.useTransmutation !== false,
+          },
         });
       }
       return updated;
@@ -400,7 +438,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     syncEngine.enqueue('subjects', 'DELETE', { id });
   };
 
-  const updateSubjectMatrix = (subjectId: string, matrix: MatrixCategory[], passingGrade?: number) => {
+  const updateSubjectMatrix = (
+    subjectId: string,
+    matrix: MatrixCategory[],
+    passingGrade?: number,
+    useTransmutation?: boolean
+  ) => {
     setSubjects((prev) => {
       const updated = prev.map((s) =>
         s.id === subjectId
@@ -408,6 +451,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               ...s,
               matrix,
               passingGrade: passingGrade !== undefined ? passingGrade : s.passingGrade,
+              useTransmutation: useTransmutation !== undefined ? useTransmutation : (s.useTransmutation !== false),
             }
           : s
       );
@@ -422,7 +466,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           schedule: target.schedule,
           units: target.units,
           passing_grade: target.passingGrade,
-          matrix: target.matrix,
+          matrix: {
+            categories: target.matrix,
+            useTransmutation: target.useTransmutation !== false,
+          },
         });
       }
       return updated;
@@ -448,7 +495,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       description: savedTemplate.description,
       is_default: savedTemplate.isDefault,
       passing_grade: savedTemplate.passingGrade,
-      matrix: savedTemplate.matrix,
+      matrix: {
+        categories: savedTemplate.matrix,
+        useTransmutation: savedTemplate.useTransmutation !== false,
+      },
     });
     return savedTemplate;
   };
@@ -466,6 +516,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...s,
         matrix: JSON.parse(JSON.stringify(template.matrix)),
         passingGrade: template.passingGrade || s.passingGrade,
+        useTransmutation: template.useTransmutation !== undefined ? template.useTransmutation : true,
       }));
       updated.forEach((s) => {
         syncEngine.enqueue('subjects', 'UPSERT', {
@@ -477,7 +528,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           schedule: s.schedule,
           units: s.units,
           passing_grade: s.passingGrade,
-          matrix: s.matrix,
+          matrix: {
+            categories: s.matrix,
+            useTransmutation: s.useTransmutation !== false,
+          },
         });
       });
       return updated;
@@ -494,6 +548,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               ...s,
               matrix: JSON.parse(JSON.stringify(template.matrix)),
               passingGrade: template.passingGrade || s.passingGrade,
+              useTransmutation: template.useTransmutation !== undefined ? template.useTransmutation : true,
             }
           : s
       );
@@ -508,7 +563,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           schedule: target.schedule,
           units: target.units,
           passing_grade: target.passingGrade,
-          matrix: target.matrix,
+          matrix: {
+            categories: target.matrix,
+            useTransmutation: target.useTransmutation !== false,
+          },
         });
       }
       return updated;
@@ -661,48 +719,44 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     note?: string,
     period?: GradingPeriod
   ) => {
+    const periodToUse = period || 'prelim';
+    const existing = attendance.find(
+      (a) => a.subjectId === subjectId && a.studentId === studentId && a.date === date
+    );
+    const recId = existing?.id || `att-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`;
+    const resolvedPeriod = period !== undefined ? period : (existing?.period || periodToUse);
+    const resolvedNote = note !== undefined ? note : existing?.note;
+
     setAttendanceRecords((prev) => {
       const idx = prev.findIndex(
         (a) => a.subjectId === subjectId && a.studentId === studentId && a.date === date
       );
-      let recId = `att-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`;
-      let updated: AttendanceRecord[];
+      const record: AttendanceRecord = {
+        id: recId,
+        subjectId,
+        studentId,
+        date,
+        status,
+        period: resolvedPeriod,
+        note: resolvedNote,
+      };
 
       if (idx >= 0) {
-        recId = prev[idx].id;
-        updated = [...prev];
-        updated[idx] = {
-          ...updated[idx],
-          status,
-          period: period !== undefined ? period : updated[idx].period,
-          note: note !== undefined ? note : updated[idx].note,
-        };
-      } else {
-        updated = [
-          ...prev,
-          {
-            id: recId,
-            subjectId,
-            studentId,
-            date,
-            status,
-            period: period || 'prelim',
-            note,
-          },
-        ];
+        const updated = [...prev];
+        updated[idx] = record;
+        return updated;
       }
+      return [...prev, record];
+    });
 
-      syncEngine.enqueue('attendance_records', 'UPSERT', {
-        id: recId,
-        subject_id: subjectId,
-        student_id: studentId,
-        date,
-        period: period || 'prelim',
-        status,
-        note,
-      });
-
-      return updated;
+    syncEngine.enqueue('attendance_records', 'UPSERT', {
+      id: recId,
+      subject_id: subjectId,
+      student_id: studentId,
+      date,
+      period: resolvedPeriod,
+      status,
+      note: resolvedNote || null,
     });
   };
 
@@ -713,38 +767,50 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     status: AttendanceStatus,
     period?: GradingPeriod
   ) => {
-    setAttendanceRecords((prev) => {
-      const prevMap = new Map(
-        prev
-          .filter((a) => a.subjectId === subjectId && a.date === date)
-          .map((r) => [r.studentId, r])
-      );
+    if (!studentIds || studentIds.length === 0) return;
+    const periodToUse = period || 'prelim';
 
-      const filtered = prev.filter(
-        (a) => !(a.subjectId === subjectId && a.date === date && studentIds.includes(a.studentId))
-      );
-      const newRecords: AttendanceRecord[] = studentIds.map((sId) => {
-        const existing = prevMap.get(sId);
-        const id = existing?.id || `att-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`;
-        syncEngine.enqueue('attendance_records', 'UPSERT', {
-          id,
-          subject_id: subjectId,
-          student_id: sId,
-          date,
-          period: period || existing?.period || 'prelim',
-          status,
-        });
-        return {
-          id,
-          subjectId,
-          studentId: sId,
-          date,
-          status,
-          period: period || existing?.period || 'prelim',
-        };
+    const prevMap = new Map(
+      attendance
+        .filter((a) => a.subjectId === subjectId && a.date === date)
+        .map((r) => [r.studentId, r])
+    );
+
+    const payloadsToSync: any[] = [];
+    const newRecords: AttendanceRecord[] = studentIds.map((sId) => {
+      const existing = prevMap.get(sId);
+      const id = existing?.id || `att-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`;
+      payloadsToSync.push({
+        id,
+        subject_id: subjectId,
+        student_id: sId,
+        date,
+        period: periodToUse,
+        status,
+        note: existing?.note || null,
       });
+      return {
+        id,
+        subjectId,
+        studentId: sId,
+        date,
+        status,
+        period: periodToUse,
+        note: existing?.note,
+      };
+    });
+
+    const studentIdSet = new Set(studentIds);
+    setAttendanceRecords((prev) => {
+      const filtered = prev.filter(
+        (a) => !(a.subjectId === subjectId && a.date === date && studentIdSet.has(a.studentId))
+      );
       return [...filtered, ...newRecords];
     });
+
+    if (payloadsToSync.length > 0) {
+      syncEngine.enqueueBatch('attendance_records', 'UPSERT', payloadsToSync);
+    }
   };
 
   // --- Holiday actions ---
@@ -919,7 +985,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return addedStudents;
   };
 
-  const updateStudent = (id: string, data: Partial<User>) => {
+  const updateStudent = (id: string, data: Partial<User>, options?: { skipSync?: boolean }) => {
     setAllUsers((prev) => {
       const updated = prev.map((u) => {
         if (u.id !== id) return u;
@@ -934,7 +1000,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       });
       const target = updated.find((u) => u.id === id);
-      if (target) {
+      if (target && !options?.skipSync) {
         const secIds = getStudentSectionIds(target);
         syncEngine.enqueue('users', 'UPSERT', {
           id: target.id,
@@ -967,24 +1033,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, initialPassword: '', error: 'User not found in system.' };
     }
 
+    const resetResponse = await teachersApi.resetPassword(userId);
+    if (resetResponse.error || !resetResponse.data) {
+      return { success: false, initialPassword: '', error: resetResponse.error || 'Password reset was rejected by the server.' };
+    }
+    const serverReset = resetResponse.data as { initialPassword: string; user?: User };
+    const serverUser = serverReset.user || targetUser;
+
     // Determine initial password based on role:
-    // Students: their studentNumber (fallback: 'student123')
-    // Faculty/Deans: 'teacher123'
-    const initialPassword =
-      targetUser.role === 'student'
-        ? (targetUser.studentNumber && targetUser.studentNumber.trim() ? targetUser.studentNumber.trim() : 'student123')
-        : 'teacher123';
+    // The protected backend generates the temporary password.
+    const initialPassword = serverReset.initialPassword;
 
     const updatedUser: User = {
-      ...targetUser,
-      customPassword: initialPassword,
+      ...serverUser,
       mustChangePassword: true,
     };
 
     // 1. Update persistent auth vault (localStorage and Supabase sys-auth-vault)
-    await saveStoredCredential(updatedUser, initialPassword, true);
-
-    // 2. Update state in DataContext & cached local storage
+    // Update state in DataContext & cached local storage. The password itself
+    // never enters local state or localStorage.
     setAllUsers((prev) => {
       const copy = prev.map((u) => (u.id === userId ? updatedUser : u));
       try {
@@ -993,63 +1060,39 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return copy;
     });
 
-    // 3. Sync to Supabase users table with metadata fallback
-    const secIds = getStudentSectionIds(updatedUser);
-    syncEngine.enqueue('users', 'UPSERT', {
-      id: updatedUser.id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      role: updatedUser.role,
-      student_number: updatedUser.studentNumber || null,
-      section_id: formatSectionIds(secIds),
-      avatar: updatedUser.avatar || null,
-      department:
-        updatedUser.role === 'student'
-          ? JSON.stringify({ customPassword: initialPassword, mustChangePassword: true })
-          : updatedUser.department || null,
-      title: updatedUser.title || null,
-    });
-
     return { success: true, initialPassword, user: updatedUser };
   };
 
   // --- Faculty / Teacher actions ---
-  const addTeacher = (
+  const addTeacher = async (
     teacherData: Omit<User, 'id' | 'role'>,
-    initialPassword = 'teacher123',
+    initialPassword = '',
     mustChangePassword = false
-  ): User => {
-    const newTeacher: User = {
-      ...teacherData,
-      id: `teacher-${Date.now().toString(36)}`,
+  ): Promise<User | null> => {
+    const response = await teachersApi.create({
+      name: teacherData.name,
+      email: teacherData.email,
+      password: initialPassword,
       role: 'teacher',
-      avatar:
-        teacherData.avatar ||
-        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(teacherData.name)}`,
-      mustChangePassword,
-      customPassword: initialPassword,
+      title: teacherData.title,
+      department: teacherData.department,
+    });
+
+    if (response.error || !response.data) return null;
+    const created = response.data as User;
+    const newTeacher: User = {
+      ...created,
+      avatar: created.avatar || teacherData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(teacherData.name)}`,
+      mustChangePassword: created.mustChangePassword ?? (mustChangePassword || true),
     };
 
-    saveStoredCredential(newTeacher, initialPassword, mustChangePassword);
-
     setAllUsers((prev) => {
-      const updated = [...prev, newTeacher];
+      const updated = [...prev.filter((user) => user.id !== newTeacher.id), newTeacher];
       try {
         localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updated));
       } catch (e) {}
       return updated;
     });
-
-    syncEngine.enqueue('users', 'UPSERT', {
-      id: newTeacher.id,
-      name: newTeacher.name,
-      email: newTeacher.email,
-      role: newTeacher.role,
-      avatar: newTeacher.avatar || null,
-      department: newTeacher.department || null,
-      title: newTeacher.title || null,
-    });
-
     return newTeacher;
   };
 
@@ -1059,8 +1102,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (u.id === id) {
           const next = { ...u, ...data };
           if (newPassword) {
-            next.customPassword = newPassword;
-            saveStoredCredential(next, newPassword, false);
+            void teachersApi.update(id, { password: newPassword });
           }
           return next;
         }
@@ -1070,7 +1112,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const target = updated.find((u) => u.id === id);
       if (target) {
         if (newPassword) {
-          saveStoredCredential(target, newPassword, false);
+          void teachersApi.update(id, { password: newPassword });
         }
         try {
           localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updated));
@@ -1109,6 +1151,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const startFreshOfficial = async (options?: { wipeCloud?: boolean }) => {
     // Keep only teachers and deans, delete mock students
     const teachersOnly = allUsers.filter((u) => u.role === 'teacher' || u.role === 'dean');
+    const templatesToKeep = matrixTemplates.length > 0 ? matrixTemplates : INITIAL_GLOBAL_TEMPLATES;
     setAllUsers(teachersOnly);
     setSections([]);
     setSubjects([]);
@@ -1116,31 +1159,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setScores([]);
     setAttendanceRecords([]);
     setHolidays(INITIAL_HOLIDAYS);
-    setMatrixTemplates(INITIAL_GLOBAL_TEMPLATES);
+    setMatrixTemplates(templatesToKeep);
 
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(teachersOnly));
     localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(teachersOnly));
+    try {
+      localStorage.removeItem('aurasms_data_store_v3_users');
+    } catch (e) {}
     localStorage.setItem(`${STORAGE_KEY}_sections`, JSON.stringify([]));
     localStorage.setItem(`${STORAGE_KEY}_subjects`, JSON.stringify([]));
     localStorage.setItem(`${STORAGE_KEY}_assessments`, JSON.stringify([]));
     localStorage.setItem(`${STORAGE_KEY}_scores`, JSON.stringify([]));
     localStorage.setItem(`${STORAGE_KEY}_attendance`, JSON.stringify([]));
     localStorage.setItem(`${STORAGE_KEY}_holidays`, JSON.stringify(INITIAL_HOLIDAYS));
-    localStorage.setItem(`${STORAGE_KEY}_templates`, JSON.stringify(INITIAL_GLOBAL_TEMPLATES));
+    localStorage.setItem(`${STORAGE_KEY}_templates`, JSON.stringify(templatesToKeep));
 
     syncEngine.clearQueue();
 
     if (options?.wipeCloud) {
-      await syncEngine.wipeCloudDatabase({ keepTeachersAndTemplates: true });
-      await syncEngine.pushAllData({
-        users: teachersOnly,
-        sections: [],
-        templates: INITIAL_GLOBAL_TEMPLATES,
-        subjects: [],
-        assessments: [],
-        scores: [],
-        attendance: [],
-        holidays: INITIAL_HOLIDAYS,
-      });
+      const wipeResult = await syncEngine.wipeCloudDatabase({ keepTeachersAndTemplates: true });
+      if (wipeResult.error) {
+        throw new Error(typeof wipeResult.error === 'string' ? wipeResult.error : 'Failed to wipe cloud database');
+      }
     }
   };
 
@@ -1177,7 +1217,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     syncEngine.clearQueue();
 
     if (options.syncToCloud) {
-      await syncEngine.wipeCloudDatabase({ keepTeachersAndTemplates: false });
       await syncEngine.pushAllData({
         users: allUsers,
         sections: updatedSections,

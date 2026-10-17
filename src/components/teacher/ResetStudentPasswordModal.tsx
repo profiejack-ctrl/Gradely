@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { User } from '../../types';
 import { NeuModal } from '../common/NeuModal';
 import { NeuButton } from '../common/NeuButton';
@@ -12,6 +13,7 @@ import {
   Copy,
   AlertTriangle,
   ShieldAlert,
+  Lock,
 } from 'lucide-react';
 
 interface ResetStudentPasswordModalProps {
@@ -27,9 +29,43 @@ export const ResetStudentPasswordModal: React.FC<ResetStudentPasswordModalProps>
   preselectedStudent,
   onShowToast,
 }) => {
-  const { students, sections, resetUserPassword } = useData();
+  const { currentUser, isDean } = useAuth();
+  const { students, sections, subjects, resetUserPassword } = useData();
 
-  const [selectedStudent, setSelectedStudent] = useState<User | null>(preselectedStudent || null);
+  // Confidentiality scoping:
+  // Deans can view and reset passwords across all sections.
+  // Regular faculty can strictly only access students enrolled in sections they advise or teach.
+  const accessibleSections = useMemo(() => {
+    if (isDean) return sections;
+    return sections.filter(
+      (sec) =>
+        sec.adviserId === currentUser?.id ||
+        subjects.some((s) => s.sectionId === sec.id && s.teacherId === currentUser?.id)
+    );
+  }, [isDean, sections, subjects, currentUser?.id]);
+
+  const accessibleStudents = useMemo(() => {
+    if (isDean) return students;
+    const accessibleSecIdSet = new Set(accessibleSections.map((s) => s.id));
+    return students.filter((stud) => {
+      const secIds = getStudentSectionIds(stud);
+      return (
+        secIds.some((id) => accessibleSecIdSet.has(id)) ||
+        accessibleSections.some((sec) => isStudentInSection(stud, sec.id))
+      );
+    });
+  }, [isDean, students, accessibleSections]);
+
+  // Check if preselected student is permitted under confidentiality rules
+  const isPreselectedPermitted = useMemo(() => {
+    if (!preselectedStudent) return true;
+    if (isDean) return true;
+    return accessibleStudents.some((s) => s.id === preselectedStudent.id);
+  }, [preselectedStudent, isDean, accessibleStudents]);
+
+  const [selectedStudent, setSelectedStudent] = useState<User | null>(
+    isPreselectedPermitted && preselectedStudent ? preselectedStudent : null
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSectionFilter, setSelectedSectionFilter] = useState('all');
   const [isResetting, setIsResetting] = useState(false);
@@ -50,12 +86,10 @@ export const ResetStudentPasswordModal: React.FC<ResetStudentPasswordModalProps>
   }, [isOpen, preselectedStudent]);
 
   const targetStudent = selectedStudent || preselectedStudent;
-  const initialPasswordForTarget = targetStudent
-    ? (targetStudent.studentNumber && targetStudent.studentNumber.trim() ? targetStudent.studentNumber.trim() : 'student123')
-    : 'student123';
+  const initialPasswordForTarget = targetStudent?.studentNumber || targetStudent?.id || 'Student ID';
 
-  // Filter students if searching
-  const filteredStudents = students.filter((s) => {
+  // Filter students strictly within accessible students only (confidentiality enforcement)
+  const filteredStudents = accessibleStudents.filter((s) => {
     if (selectedSectionFilter !== 'all') {
       if (!isStudentInSection(s, selectedSectionFilter)) return false;
     }
@@ -70,6 +104,12 @@ export const ResetStudentPasswordModal: React.FC<ResetStudentPasswordModalProps>
 
   const handlePerformReset = async () => {
     if (!targetStudent) return;
+
+    // Confidentiality guard: non-deans can only reset students in their own classes
+    if (!isDean && !accessibleStudents.some((s) => s.id === targetStudent.id)) {
+      onShowToast('Access Denied', 'You may only reset passwords for students in your assigned classes.', 'error');
+      return;
+    }
 
     setIsResetting(true);
     try {
@@ -104,8 +144,8 @@ export const ResetStudentPasswordModal: React.FC<ResetStudentPasswordModalProps>
   };
 
   const sectionOptions = [
-    { value: 'all', label: 'All Sections' },
-    ...sections.map((s) => ({ value: s.id, label: s.name })),
+    { value: 'all', label: isDean ? 'All Sections' : 'All My Classes / Sections' },
+    ...accessibleSections.map((s) => ({ value: s.id, label: s.name })),
   ];
 
   return (
@@ -116,7 +156,7 @@ export const ResetStudentPasswordModal: React.FC<ResetStudentPasswordModalProps>
       subtitle={
         resetSuccessData
           ? 'Temporary credentials are now active for this student account.'
-          : 'Restore forgotten credentials to initial Student ID with required update on login.'
+          : 'Generate a secure temporary password with required update on login.'
       }
       maxWidth="lg"
     >
@@ -169,7 +209,7 @@ export const ResetStudentPasswordModal: React.FC<ResetStudentPasswordModalProps>
             <div className="flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400 pt-1">
               <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
               <span>
-                Inform the student to log in using their Student ID (<strong>{resetSuccessData.initialPassword}</strong>). They will be required to choose a new password before accessing their portal.
+                Inform the student to log in using their Student ID as both User ID and Password (<strong>{resetSuccessData.initialPassword}</strong>). They will be required to create a new password and verify a valid personal email via OTP before accessing their portal.
               </span>
             </div>
           </div>
@@ -197,41 +237,69 @@ export const ResetStudentPasswordModal: React.FC<ResetStudentPasswordModalProps>
       ) : (
         /* Selection & Confirmation View */
         <div className="space-y-4">
-          {!preselectedStudent && (
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="flex-1 relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search student by name or ID..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                  />
-                </div>
-                <div className="w-full sm:w-44">
-                  <NeuSelect
-                    value={selectedSectionFilter}
-                    onChange={(e) => setSelectedSectionFilter(e.target.value)}
-                    options={sectionOptions}
-                  />
-                </div>
+          {preselectedStudent && !isPreselectedPermitted ? (
+            <div className="py-8 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 flex items-center justify-center mx-auto border border-rose-200 dark:border-rose-900">
+                <ShieldAlert className="w-6 h-6" />
               </div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Confidentiality Restriction</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                This student is enrolled in another faculty member's class. For student privacy and institutional confidentiality, credentials may only be reset by their assigned instructor or the College Dean.
+              </p>
+              <div className="pt-2">
+                <NeuButton variant="secondary" size="sm" onClick={onClose}>
+                  Close
+                </NeuButton>
+              </div>
+            </div>
+          ) : (
+            <>
+              {!isDean && (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 text-xs text-[#1E3A8A] dark:text-blue-300 font-medium">
+                  <Lock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>
+                    <strong>Confidentiality Enforced:</strong> Showing only students and sections enrolled in your assigned classes.
+                  </span>
+                </div>
+              )}
 
-              {/* Candidate list if no student selected yet */}
-              {!selectedStudent && (
-                <div className="max-h-56 overflow-y-auto space-y-1.5 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 bg-slate-50/50 dark:bg-slate-900/50">
-                  {filteredStudents.length === 0 ? (
-                    <div className="text-center py-6 text-xs text-slate-400">
-                      No students found matching "{searchQuery}"
+              {!preselectedStudent && (
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex-1 relative">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search student by name or ID..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                      />
                     </div>
-                  ) : (
-                    filteredStudents.map((stud) => {
-                      const secNames = getStudentSectionIds(stud)
-                        .map((id) => sections.find((s) => s.id === id)?.name)
-                        .filter(Boolean)
-                        .join(', ');
+                    <div className="w-full sm:w-44">
+                      <NeuSelect
+                        value={selectedSectionFilter}
+                        onChange={(e) => setSelectedSectionFilter(e.target.value)}
+                        options={sectionOptions}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Candidate list if no student selected yet */}
+                  {!selectedStudent && (
+                    <div className="max-h-56 overflow-y-auto space-y-1.5 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 bg-slate-50/50 dark:bg-slate-900/50">
+                      {filteredStudents.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-slate-400">
+                          {accessibleStudents.length === 0
+                            ? 'No students currently enrolled in your assigned classes or sections.'
+                            : `No students found matching "${searchQuery}"`}
+                        </div>
+                      ) : (
+                        filteredStudents.map((stud) => {
+                          const secNames = getStudentSectionIds(stud)
+                            .map((id) => accessibleSections.find((s) => s.id === id)?.name || sections.find((s) => s.id === id)?.name)
+                            .filter(Boolean)
+                            .join(', ');
 
                       return (
                         <div
@@ -321,7 +389,7 @@ export const ResetStudentPasswordModal: React.FC<ResetStudentPasswordModalProps>
               <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-100/50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <span>
-                  When reset, any previous custom password will be removed. The student must sign in using their Student ID (<strong>{initialPasswordForTarget}</strong>) and must set a new password before viewing grades or attendance.
+                  When reset, the server generates a one-time temporary password. The student must set a new password before viewing grades or attendance.
                 </span>
               </div>
 
@@ -348,18 +416,20 @@ export const ResetStudentPasswordModal: React.FC<ResetStudentPasswordModalProps>
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
-              <NeuButton
-                variant="secondary"
-                size="md"
-                onClick={onClose}
-              >
-                Cancel
-              </NeuButton>
-            </div>
-          )}
-        </div>
-      )}
-    </NeuModal>
-  );
+              <div className="flex items-center justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+                <NeuButton
+                  variant="secondary"
+                  size="md"
+                  onClick={onClose}
+                >
+                  Cancel
+                </NeuButton>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    )}
+  </NeuModal>
+);
 };

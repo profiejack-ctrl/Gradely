@@ -359,6 +359,11 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
                 Grade Equiv: {perf.gpa.toFixed(2)}
               </NeuBadge>
             )}
+            {perf.useTransmutation && (
+              <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-500/20">
+                ⚡ Transmuted (BCP Annex A)
+              </span>
+            )}
           </div>
         </NeuCard>
 
@@ -403,6 +408,9 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
                       </div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
                         {pSumm?.assessmentCount || 0} Graded Items
+                        {perf.useTransmutation && pSumm?.hasRecords && pSumm?.rawGrade !== undefined && (
+                          <span className="text-slate-400 ml-1.5">(Raw: {pSumm.rawGrade}%)</span>
+                        )}
                       </div>
                     </div>
 
@@ -430,10 +438,21 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500">
-                      Score: {catSummary.rawPercentage}%
-                    </span>
+                  <div className="flex items-center justify-between text-xs flex-wrap gap-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-slate-500">
+                        Score: {catSummary.rawPercentage}%
+                      </span>
+                      {catSummary.isProject ? (
+                        <span className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                          Fixed Grade
+                        </span>
+                      ) : catSummary.isTransmutable && catSummary.transmutedPercentage !== undefined && catSummary.assessmentCount > 0 ? (
+                        <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                          ⚡ Transmuted: {catSummary.transmutedPercentage}%
+                        </span>
+                      ) : null}
+                    </div>
                     <span className="font-bold text-indigo-600 dark:text-indigo-400">
                       +{catSummary.weightedContribution}% pts
                     </span>

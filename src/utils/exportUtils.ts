@@ -337,14 +337,16 @@ export function exportGradebookToSummaryReportCSV(
   scores: ScoreRecord[],
   attendance: AttendanceRecord[]
 ) {
+  const useTransmutation = subject.useTransmutation !== false;
   const headers = [
     'Student Number',
     'Student Name',
     'Email',
-    'Prelim Grade (30%)',
-    'Midterm Grade (30%)',
-    'Finals Grade (40%)',
-    'Semestral Final Grade %',
+    useTransmutation ? 'Prelim Grade (Transmuted)' : 'Prelim Grade (30%)',
+    useTransmutation ? 'Midterm Grade (Transmuted)' : 'Midterm Grade (30%)',
+    useTransmutation ? 'Finals Grade (Transmuted)' : 'Finals Grade (40%)',
+    useTransmutation ? 'Semestral Final Grade (BCP Annex A)' : 'Semestral Final Grade %',
+    ...(useTransmutation ? ['Raw Semestral %'] : []),
     'Grade Equivalent (1.00 - 5.00)',
     'Remarks',
   ];
@@ -368,6 +370,7 @@ export function exportGradebookToSummaryReportCSV(
       perf.periods.midterm.grade,
       perf.periods.finals.grade,
       perf.finalGrade,
+      ...(useTransmutation ? [perf.rawFinalGrade ?? perf.finalGrade] : []),
       perf.gpa.toFixed(2),
       perf.remarks,
     ].join(',');

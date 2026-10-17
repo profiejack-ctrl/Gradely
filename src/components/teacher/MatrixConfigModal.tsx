@@ -3,7 +3,7 @@ import { Subject, MatrixCategory, MatrixSubCategory } from '../../types';
 import { NeuModal } from '../common/NeuModal';
 import { NeuButton } from '../common/NeuButton';
 import { useData } from '../../context/DataContext';
-import { validateMatrixTotal, validateSubCategoriesTotal } from '../../utils/gradeCalculator';
+import { validateMatrixTotal, validateSubCategoriesTotal, isProjectCategory } from '../../utils/gradeCalculator';
 import {
   Plus,
   Trash2,
@@ -19,7 +19,7 @@ interface MatrixConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   subject: Subject | null;
-  onSave: (subjectId: string, matrix: MatrixCategory[], passingGrade: number) => void;
+  onSave: (subjectId: string, matrix: MatrixCategory[], passingGrade: number, useTransmutation?: boolean) => void;
 }
 
 export const MatrixConfigModal: React.FC<MatrixConfigModalProps> = ({
@@ -32,6 +32,7 @@ export const MatrixConfigModal: React.FC<MatrixConfigModalProps> = ({
 
   const [categories, setCategories] = useState<MatrixCategory[]>([]);
   const [passingGrade, setPassingGrade] = useState<number>(75);
+  const [useTransmutation, setUseTransmutation] = useState<boolean>(true);
   const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
 
   // New category inputs
@@ -46,6 +47,7 @@ export const MatrixConfigModal: React.FC<MatrixConfigModalProps> = ({
     if (subject) {
       setCategories(JSON.parse(JSON.stringify(subject.matrix || [])));
       setPassingGrade(subject.passingGrade || 75);
+      setUseTransmutation(subject.useTransmutation !== false);
       const firstWithSubs = subject.matrix.find((c) => c.subCategories && c.subCategories.length > 0);
       setExpandedCatId(firstWithSubs?.id || null);
     }
@@ -111,12 +113,14 @@ export const MatrixConfigModal: React.FC<MatrixConfigModalProps> = ({
     e.preventDefault();
     if (!newCatName.trim()) return;
 
+    const isProject = isProjectCategory({ name: newCatName.trim() });
     const newCat: MatrixCategory = {
       id: `cat-${Date.now().toString(36)}`,
       name: newCatName.trim(),
       weight: Number(newCatWeight) || 10,
-      color: 'blue',
+      color: isProject ? 'indigo' : 'blue',
       description: `Custom assessment criteria for ${newCatName.trim()}`,
+      isTransmutable: !isProject,
     };
 
     setCategories((prev) => [...prev, newCat]);
@@ -152,6 +156,9 @@ export const MatrixConfigModal: React.FC<MatrixConfigModalProps> = ({
     if (!tmpl) return;
     setCategories(JSON.parse(JSON.stringify(tmpl.matrix)));
     setPassingGrade(tmpl.passingGrade);
+    if (tmpl.useTransmutation !== undefined) {
+      setUseTransmutation(tmpl.useTransmutation);
+    }
     const firstWithSubs = tmpl.matrix.find((c) => c.subCategories && c.subCategories.length > 0);
     setExpandedCatId(firstWithSubs?.id || null);
   };
@@ -165,6 +172,7 @@ export const MatrixConfigModal: React.FC<MatrixConfigModalProps> = ({
       description: `Global template created from ${subject.name} (${subject.code}).`,
       passingGrade,
       matrix: categories,
+      useTransmutation,
     });
 
     if (window.confirm(`Template "${tmpl.name}" saved! Do you also want to apply it to ALL subjects across all sections now?`)) {
@@ -205,7 +213,7 @@ export const MatrixConfigModal: React.FC<MatrixConfigModalProps> = ({
       }
     }
 
-    onSave(subject.id, categories, passingGrade);
+    onSave(subject.id, categories, passingGrade, useTransmutation);
     onClose();
   };
 
@@ -345,6 +353,29 @@ export const MatrixConfigModal: React.FC<MatrixConfigModalProps> = ({
                           {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         </button>
                       )}
+                      {(() => {
+                        const isProject = isProjectCategory(cat);
+                        const transmutable = cat.isTransmutable !== undefined ? cat.isTransmutable : !isProject;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextVal = !transmutable;
+                              setCategories((prev) =>
+                                prev.map((c) => (c.id === cat.id ? { ...c, isTransmutable: nextVal } : c))
+                              );
+                            }}
+                            className={`text-[10px] font-semibold px-2 py-1 rounded-md border shrink-0 transition-all ${
+                              transmutable
+                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100'
+                                : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
+                            }`}
+                            title="Click to toggle between Transmutable (Annex A) and Fixed Grade"
+                          >
+                            {transmutable ? '⚡ Transmutable' : '📌 Fix Grade Only'}
+                          </button>
+                        );
+                      })()}
                     </div>
 
                     {/* Slider + numeric weight input */}
@@ -511,6 +542,40 @@ export const MatrixConfigModal: React.FC<MatrixConfigModalProps> = ({
             />
             <span className="text-xs text-slate-400 font-bold">%</span>
           </div>
+        </div>
+
+        {/* Grade Transmutation Setting */}
+        <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Grade Transmutation</span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase ${
+                useTransmutation
+                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+              }`}>
+                {useTransmutation ? '⚡ BCP Annex A (Active)' : 'Raw % (Disabled)'}
+              </span>
+            </div>
+            <div className="text-xs text-slate-500 mt-1 max-w-lg">
+              {useTransmutation
+                ? 'Official Bestlink College transmutation active (BCP Annex A): Maps raw scores on academic tasks (Class Standing & Exams) to collegiate grades (50% raw = 75 passing grade). Projects are fixed grades only (non-transmutable).'
+                : 'Transmutation disabled: calculates periodic and semestral grades using raw unadjusted percentages (0-100%).'}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setUseTransmutation(!useTransmutation)}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              useTransmutation ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                useTransmutation ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
 
         {/* Footer Actions */}

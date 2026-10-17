@@ -65,11 +65,23 @@ export const MatrixBreakdownView: React.FC = () => {
                 <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
                   <div className="text-left sm:text-right">
                     <div className="text-[11px] sm:text-xs text-slate-500 font-medium">Your Semestral Grade</div>
-                    <div className="text-lg sm:text-xl font-bold text-indigo-600 dark:text-indigo-400">{perf.finalGrade}%</div>
+                    <div className="text-lg sm:text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                      {perf.finalGrade}%
+                      {perf.useTransmutation && perf.rawFinalGrade !== undefined && (
+                        <span className="text-xs font-normal text-slate-400 ml-1.5">(Raw: {perf.rawFinalGrade}%)</span>
+                      )}
+                    </div>
                   </div>
-                  <NeuBadge variant={perf.isPassing ? 'success' : 'danger'}>
-                    {perf.remarks}
-                  </NeuBadge>
+                  <div className="flex flex-col items-end gap-1">
+                    <NeuBadge variant={perf.isPassing ? 'success' : 'danger'}>
+                      {perf.remarks}
+                    </NeuBadge>
+                    {perf.useTransmutation && (
+                      <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-500/20">
+                        ⚡ BCP Transmuted
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -103,6 +115,18 @@ export const MatrixBreakdownView: React.FC = () => {
                           </span>
                         </div>
 
+                        {catSummary.isProject ? (
+                          <div className="flex justify-between text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                            <span>Grading Type:</span>
+                            <span>Fixed Grade (Non-transmutable)</span>
+                          </div>
+                        ) : catSummary.isTransmutable && catSummary.transmutedPercentage !== undefined && catSummary.assessmentCount > 0 ? (
+                          <div className="flex justify-between text-[11px] text-amber-600 dark:text-amber-400 font-semibold">
+                            <span>Transmuted Grade:</span>
+                            <span>{catSummary.transmutedPercentage}% (Annex A)</span>
+                          </div>
+                        ) : null}
+
                         <div className="flex justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400">
                           <span>Contribution:</span>
                           <span>+{catSummary.weightedContribution}% pts</span>
@@ -125,7 +149,7 @@ export const MatrixBreakdownView: React.FC = () => {
                 <span className="flex items-center gap-1.5 font-medium flex-wrap">
                   <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                   <span className="break-words">
-                    Final Grade = {perf.categories.map((c) => `(${c.rawPercentage}% × ${c.category.weight}%)`).join(' + ')}
+                    Effective Grade = {perf.categories.map((c) => `(${c.transmutedPercentage ?? c.rawPercentage}% × ${c.category.weight}%)`).join(' + ')}
                   </span>
                 </span>
                 <span className="font-bold text-slate-900 dark:text-white text-sm shrink-0 self-end sm:self-auto">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { syncEngine, SyncStatus } from '../../services/syncEngine';
+import { syncEngine, SyncStatus } from '../../services/apiSyncEngine';
 import { useData } from '../../context/DataContext';
 import {
   CloudOff,

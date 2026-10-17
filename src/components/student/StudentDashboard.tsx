@@ -304,6 +304,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 Grade Equiv: {currentSubjectPerf?.gpa ? currentSubjectPerf.gpa.toFixed(2) : '5.00'}{' '}
                 {currentSubjectPerf?.remarks ? `• ${currentSubjectPerf.remarks}` : ''}
               </NeuBadge>
+              {currentSubjectPerf?.useTransmutation && (
+                <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-500/20">
+                  ⚡ BCP Annex A
+                </span>
+              )}
             </div>
 
             {/* Mini 3-Quarter Period Breakdown for this subject */}
@@ -512,7 +517,18 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                           {finalsGrade > 0 ? `${finalsGrade}%` : <span className="text-slate-400 dark:text-slate-600">—</span>}
                         </td>
                         <td className="py-3.5 px-3 text-center font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-                          {perf.finalGrade > 0 ? `${perf.finalGrade}%` : <span className="text-slate-400 dark:text-slate-600">0%</span>}
+                          {perf.finalGrade > 0 ? (
+                            <div>
+                              <span>{perf.finalGrade}%</span>
+                              {perf.useTransmutation && perf.rawFinalGrade !== undefined && (
+                                <div className="text-[10px] text-slate-400 font-normal">
+                                  Raw: {perf.rawFinalGrade}%
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 dark:text-slate-600">0%</span>
+                          )}
                         </td>
                         <td className="py-3.5 px-3 text-center font-mono font-bold text-indigo-600 dark:text-indigo-400 text-sm tabular-nums">
                           {perf.gpa.toFixed(2)}

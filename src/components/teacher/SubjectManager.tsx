@@ -80,8 +80,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     setIsMatrixModalOpen(true);
   };
 
-  const handleSaveMatrix = (subjectId: string, matrix: MatrixCategory[], passingGrade: number) => {
-    updateSubjectMatrix(subjectId, matrix, passingGrade);
+  const handleSaveMatrix = (subjectId: string, matrix: MatrixCategory[], passingGrade: number, useTransmutation?: boolean) => {
+    updateSubjectMatrix(subjectId, matrix, passingGrade, useTransmutation);
     onShowToast('Grading Matrix Saved', 'Custom weights and criteria successfully updated.', 'success');
   };
 

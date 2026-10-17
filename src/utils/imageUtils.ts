@@ -5,8 +5,6 @@
  * - Returns public HTTPS S3 URL from Supabase CDN
  * - Gracefully falls back to optimized data URL if cloud storage bucket is pending setup
  */
-import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-
 export interface ResizeOptions {
   maxWidth?: number;
   maxHeight?: number;
@@ -111,44 +109,14 @@ export async function processAndUploadAvatar(
     reader.readAsDataURL(file);
   });
 
-  // 2. Attempt direct upload to Supabase Storage (S3) bucket 'avatars'
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const sanitizedId = (userId || 'user').replace(/[^a-zA-Z0-9_-]/g, '');
-      const fileName = `${sanitizedId}-${Date.now()}.jpg`;
-
-      const { data, error } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, blob, {
-          contentType: 'image/jpeg',
-          upsert: true,
-        });
-
-      if (!error && data) {
-        const { data: publicUrlData } = supabase.storage
-          .from('avatars')
-          .getPublicUrl(fileName);
-
-        if (publicUrlData?.publicUrl) {
-          return {
-            url: publicUrlData.publicUrl,
-            isCloudStorage: true,
-            message: 'Image uploaded to Supabase S3 Storage',
-          };
-        }
-      } else if (error) {
-        console.warn('Supabase storage upload notice:', error.message);
-      }
-    } catch (storageErr: any) {
-      console.warn('Supabase storage upload exception:', storageErr);
-    }
-  }
-
-  // 3. Fallback to compact Data URL if bucket is not yet provisioned
+  // Avatar persistence is handled by the protected profile API. The browser
+  // never uploads directly with a public Supabase key.
+  void blob;
+  void userId;
   return {
     url: dataUrl,
     isCloudStorage: false,
-    message: 'Processed as optimized image',
+    message: 'Processed as optimized image; save through the protected API',
   };
 }
 

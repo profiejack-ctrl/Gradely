@@ -33,7 +33,7 @@ export function calculateAttendanceStats(
 
   if (records.length === 0) {
     return {
-      rate: 100,
+      rate: 0,
       total: 0,
       present: 0,
       late: 0,
@@ -58,7 +58,7 @@ export function calculateAttendanceStats(
   const rate =
     records.length > 0
       ? Math.min(100, Math.max(0, (scoreUnits / records.length) * 100))
-      : 100;
+      : 0;
 
   return {
     rate: Math.round(rate * 10) / 10,
@@ -68,6 +68,87 @@ export function calculateAttendanceStats(
     absent,
     excused,
   };
+}
+
+/**
+ * Detects whether a grading category represents a Project (e.g. CBO, Course-based Output, Capstone, Portfolio)
+ * Projects are NOT transmutable under institutional grading rules; they are fixed grades only.
+ */
+export function isProjectCategory(
+  category: MatrixCategory | MatrixSubCategory | { name: string; id?: string; isTransmutable?: boolean }
+): boolean {
+  if ('isTransmutable' in category && (category as { isTransmutable?: boolean }).isTransmutable !== undefined) {
+    return !(category as { isTransmutable?: boolean }).isTransmutable;
+  }
+  const name = (category.name || '').toLowerCase();
+  const id = (category.id || '').toLowerCase();
+  return (
+    name.includes('project') ||
+    id.includes('project') ||
+    name.includes('cbo') ||
+    id.includes('cbo') ||
+    name.includes('course-based') ||
+    id.includes('course-based') ||
+    name.includes('capstone') ||
+    name.includes('portfolio')
+  );
+}
+
+/**
+ * Bestlink College of the Philippines (BCP) Official Transmutation Table (Annex A - Collegiate Level)
+ * Initial Grade = (Raw Score / Total Items) * 100
+ *
+ * Transmutation Bracket Mapping:
+ * - No attempt: 50
+ * - 0: 65
+ * - 1-6: 66, 7-12: 67, 13-18: 68, 19-24: 69, 25-30: 70
+ * - 31-36: 71, 37-42: 72, 43-45: 73, 46-48: 74
+ * - 49-50: 75 (Official Collegiate Passing Grade Threshold: 50% = 75)
+ * - 51-52: 76, 53-54: 77, 55-56: 78, 57-58: 79, 59-60: 80
+ * - 61-62: 81, 63-64: 82, 65-66: 83, 67-68: 84, 69-70: 85
+ * - 71-72: 86, 73-74: 87, 75-76: 88, 77-78: 89, 79-80: 90
+ * - 81-82: 91, 83-84: 92, 85-86: 93, 87-88: 94, 89-90: 95
+ * - 91-92: 96, 93-94: 97, 95-96: 98, 97-98: 99, 99-100: 100
+ */
+export function transmuteGrade(rawPercentage: number, hasAttempt: boolean = true): number {
+  if (!hasAttempt) return 50;
+  const raw = Math.min(100, Math.max(0, Math.round(rawPercentage)));
+  if (raw === 0) return 65;
+  if (raw <= 6) return 66;
+  if (raw <= 12) return 67;
+  if (raw <= 18) return 68;
+  if (raw <= 24) return 69;
+  if (raw <= 30) return 70;
+  if (raw <= 36) return 71;
+  if (raw <= 42) return 72;
+  if (raw <= 45) return 73;
+  if (raw <= 48) return 74;
+  if (raw <= 50) return 75;
+  if (raw <= 52) return 76;
+  if (raw <= 54) return 77;
+  if (raw <= 56) return 78;
+  if (raw <= 58) return 79;
+  if (raw <= 60) return 80;
+  if (raw <= 62) return 81;
+  if (raw <= 64) return 82;
+  if (raw <= 66) return 83;
+  if (raw <= 68) return 84;
+  if (raw <= 70) return 85;
+  if (raw <= 72) return 86;
+  if (raw <= 74) return 87;
+  if (raw <= 76) return 88;
+  if (raw <= 78) return 89;
+  if (raw <= 80) return 90;
+  if (raw <= 82) return 91;
+  if (raw <= 84) return 92;
+  if (raw <= 86) return 93;
+  if (raw <= 88) return 94;
+  if (raw <= 90) return 95;
+  if (raw <= 92) return 96;
+  if (raw <= 94) return 97;
+  if (raw <= 96) return 98;
+  if (raw <= 98) return 99;
+  return 100;
 }
 
 /**
@@ -81,7 +162,8 @@ export function calculateSubCategorySummary(
   assessments: Assessment[],
   scores: ScoreRecord[],
   attendanceRecords: AttendanceRecord[],
-  period?: GradingPeriod
+  period?: GradingPeriod,
+  useTransmutation: boolean = true
 ): SubCategoryScoreSummary {
   const isAttendance =
     subCat.name.toLowerCase().includes('attend') ||
@@ -89,7 +171,7 @@ export function calculateSubCategorySummary(
 
   if (isAttendance) {
     const attStats = calculateAttendanceStats(attendanceRecords, studentId, subjectId, period);
-    const rawPct = attStats.total > 0 ? attStats.rate : 100;
+    const rawPct = attStats.total > 0 ? attStats.rate : 0;
     const weighted = (rawPct * subCat.weight) / 100;
 
     return {
@@ -97,8 +179,10 @@ export function calculateSubCategorySummary(
       earnedPoints: Math.round(rawPct),
       maxPoints: 100,
       rawPercentage: Math.round(rawPct * 10) / 10,
+      transmutedPercentage: Math.round(rawPct * 10) / 10,
       weightedContribution: Math.round(weighted * 10) / 10,
       assessmentCount: attStats.total,
+      isTransmutable: false,
     };
   }
 
@@ -115,14 +199,19 @@ export function calculateSubCategorySummary(
     );
   });
 
+  const isProject = isProjectCategory(parentCat) || isProjectCategory(subCat);
+  const isTransmutable = useTransmutation && !isProject;
+
   if (subAssessments.length === 0) {
     return {
       subCategory: subCat,
       earnedPoints: 0,
       maxPoints: 0,
-      rawPercentage: 100,
-      weightedContribution: (100 * subCat.weight) / 100,
+      rawPercentage: 0,
+      transmutedPercentage: 0,
+      weightedContribution: 0,
       assessmentCount: 0,
+      isTransmutable,
     };
   }
 
@@ -135,20 +224,23 @@ export function calculateSubCategorySummary(
     );
     totalMax += assessment.maxScore;
     if (scoreRec) {
-      totalEarned += Math.max(0, scoreRec.score);
+      totalEarned += Math.min(assessment.maxScore, Math.max(0, scoreRec.score));
     }
   }
 
-  const rawPct = totalMax > 0 ? (totalEarned / totalMax) * 100 : 100;
-  const weighted = (rawPct * subCat.weight) / 100;
+  const rawPct = totalMax > 0 ? (totalEarned / totalMax) * 100 : 0;
+  const roundedRawPct = Math.round(rawPct * 10) / 10;
+  const weighted = (roundedRawPct * subCat.weight) / 100;
 
   return {
     subCategory: subCat,
     earnedPoints: Math.round(totalEarned * 10) / 10,
     maxPoints: totalMax,
-    rawPercentage: Math.round(rawPct * 10) / 10,
+    rawPercentage: roundedRawPct,
+    transmutedPercentage: isTransmutable ? transmuteGrade(roundedRawPct, true) : roundedRawPct,
     weightedContribution: Math.round(weighted * 10) / 10,
     assessmentCount: subAssessments.length,
+    isTransmutable,
   };
 }
 
@@ -162,8 +254,12 @@ export function calculateCategorySummary(
   assessments: Assessment[],
   scores: ScoreRecord[],
   attendanceRecords: AttendanceRecord[],
-  period?: GradingPeriod
+  period?: GradingPeriod,
+  useTransmutation: boolean = true
 ): CategoryScoreSummary {
+  const isProject = isProjectCategory(category);
+  const isTransmutable = useTransmutation && !isProject && (category.isTransmutable !== false);
+
   // If category has nested subcategories (e.g. Class Standing -> Attendance, Performance Task, Quizzes)
   if (category.subCategories && category.subCategories.length > 0) {
     const subSummaries = category.subCategories.map((sub) =>
@@ -175,7 +271,8 @@ export function calculateCategorySummary(
         assessments,
         scores,
         attendanceRecords,
-        period
+        period,
+        useTransmutation
       )
     );
 
@@ -192,27 +289,38 @@ export function calculateCategorySummary(
     }
 
     const roundedParentPct = Math.min(100, Math.max(0, Math.round(parentRawPct * 10) / 10));
-    const parentWeighted = (roundedParentPct * category.weight) / 100;
+
+    // When isTransmutable is true, Class Standing is transmuted once academic assessments exist.
+    // If only attendance is logged (totalAssessments === 0), attendance contributes its raw portion without false transmutation.
+    let effectivePct = roundedParentPct;
+    if (isTransmutable && totalAssessments > 0) {
+      effectivePct = transmuteGrade(roundedParentPct, true);
+    }
+
+    const parentWeighted = (effectivePct * category.weight) / 100;
 
     return {
       category,
       earnedPoints: Math.round(totalEarned * 10) / 10,
       maxPoints: totalMax,
       rawPercentage: roundedParentPct,
+      transmutedPercentage: Math.round(effectivePct * 10) / 10,
       weightedContribution: Math.round(parentWeighted * 10) / 10,
       assessmentCount: totalAssessments,
       subCategorySummaries: subSummaries,
+      isTransmutable,
+      isProject,
     };
   }
 
-  // Flat category (e.g. Exams 25%, Projects 40%, or standalone Attendance)
+  // Standalone Attendance category
   const isAttendanceCat =
     category.name.toLowerCase().includes('attend') ||
     category.id.toLowerCase().includes('attend');
 
   if (isAttendanceCat) {
     const attStats = calculateAttendanceStats(attendanceRecords, studentId, subjectId, period);
-    const rawPct = attStats.total > 0 ? attStats.rate : 100;
+    const rawPct = attStats.total > 0 ? attStats.rate : 0;
     const weighted = (rawPct * category.weight) / 100;
 
     return {
@@ -220,12 +328,15 @@ export function calculateCategorySummary(
       earnedPoints: Math.round(rawPct),
       maxPoints: 100,
       rawPercentage: Math.round(rawPct * 10) / 10,
+      transmutedPercentage: Math.round(rawPct * 10) / 10,
       weightedContribution: Math.round(weighted * 10) / 10,
       assessmentCount: attStats.total,
+      isTransmutable: false,
+      isProject: false,
     };
   }
 
-  // Regular non-attendance flat category
+  // Regular non-attendance flat category (e.g. Project 40%, Examination 25%)
   const categoryAssessments = assessments.filter((a) => {
     if (a.subjectId !== subjectId) return false;
     if (period && (a.period || 'prelim') !== period) return false;
@@ -237,9 +348,12 @@ export function calculateCategorySummary(
       category,
       earnedPoints: 0,
       maxPoints: 0,
-      rawPercentage: 100,
-      weightedContribution: (100 * category.weight) / 100,
+      rawPercentage: 0,
+      transmutedPercentage: 0,
+      weightedContribution: 0,
       assessmentCount: 0,
+      isTransmutable,
+      isProject,
     };
   }
 
@@ -252,20 +366,31 @@ export function calculateCategorySummary(
     );
     totalMax += assessment.maxScore;
     if (scoreRec) {
-      totalEarned += Math.max(0, scoreRec.score);
+      totalEarned += Math.min(assessment.maxScore, Math.max(0, scoreRec.score));
     }
   }
 
-  const rawPct = totalMax > 0 ? (totalEarned / totalMax) * 100 : 100;
-  const weighted = (rawPct * category.weight) / 100;
+  const rawPct = totalMax > 0 ? (totalEarned / totalMax) * 100 : 0;
+  const roundedRawPct = Math.round(rawPct * 10) / 10;
+
+  // Projects are NOT transmutable: they are fixed grades only.
+  let effectivePct = roundedRawPct;
+  if (isTransmutable && categoryAssessments.length > 0) {
+    effectivePct = transmuteGrade(roundedRawPct, true);
+  }
+
+  const weighted = (effectivePct * category.weight) / 100;
 
   return {
     category,
     earnedPoints: Math.round(totalEarned * 10) / 10,
     maxPoints: totalMax,
-    rawPercentage: Math.round(rawPct * 10) / 10,
+    rawPercentage: roundedRawPct,
+    transmutedPercentage: Math.round(effectivePct * 10) / 10,
     weightedContribution: Math.round(weighted * 10) / 10,
     assessmentCount: categoryAssessments.length,
+    isTransmutable,
+    isProject,
   };
 }
 
@@ -325,6 +450,8 @@ export function calculatePeriodSummary(
     (a) => a.subjectId === subject.id && (a.period || 'prelim') === period
   );
 
+  const useTransmutation = subject.useTransmutation !== false;
+
   const categories: CategoryScoreSummary[] = subject.matrix.map((cat) =>
     calculateCategorySummary(
       cat,
@@ -333,30 +460,41 @@ export function calculatePeriodSummary(
       assessments,
       scores,
       attendanceRecords,
-      period
+      period,
+      useTransmutation
     )
   );
 
   const attStats = calculateAttendanceStats(attendanceRecords, student.id, subject.id, period);
+  const hasRecords = periodAssessments.length > 0 || attStats.total > 0;
 
-  let totalWeighted = 0;
+  let totalEffectiveWeighted = 0;
+  let totalRawWeighted = 0;
   for (const cat of categories) {
-    totalWeighted += cat.weightedContribution;
+    totalEffectiveWeighted += cat.weightedContribution;
+    totalRawWeighted += (cat.rawPercentage * cat.category.weight) / 100;
   }
 
-  const periodGrade = Math.min(100, Math.max(0, Math.round(totalWeighted * 10) / 10));
-  const isPassing = periodGrade >= subject.passingGrade;
+  const rawPeriodGrade = Math.min(100, Math.max(0, Math.round(totalRawWeighted * 10) / 10));
+  const effectivePeriodGrade = hasRecords
+    ? Math.min(100, Math.max(0, Math.round(totalEffectiveWeighted * 10) / 10))
+    : 0;
+
+  const isPassing = effectivePeriodGrade >= subject.passingGrade;
 
   return {
     period,
     periodName: periodConfig.shortName,
     weight: periodConfig.weight,
-    grade: periodGrade,
+    grade: effectivePeriodGrade,
+    rawGrade: rawPeriodGrade,
+    transmutedGrade: effectivePeriodGrade,
+    useTransmutation,
     categories,
     attendanceRate: attStats.rate,
     assessmentCount: periodAssessments.length,
     isPassing,
-    hasRecords: periodAssessments.length > 0 || attStats.total > 0,
+    hasRecords,
   };
 }
 
@@ -402,13 +540,14 @@ export function calculateStudentSubjectPerformance(
     finals,
   };
 
-  // Weighted Semestral Formula: 30% Prelim + 30% Midterm + 40% Finals
-  // If not all terms have records yet, calculate running proportional grade from active terms
+  const useTransmutation = subject.useTransmutation !== false;
   const activePeriods = [prelim, midterm, finals].filter((p) => p.hasRecords);
 
   let finalGrade = 0;
+  let rawFinalGrade = 0;
+
   if (activePeriods.length === 0) {
-    // If no records in any period, default to overall matrix
+    // No records means the course is not graded yet, not 100% complete.
     const defaultCategories: CategoryScoreSummary[] = subject.matrix.map((cat) =>
       calculateCategorySummary(
         cat,
@@ -416,13 +555,17 @@ export function calculateStudentSubjectPerformance(
         student.id,
         assessments,
         scores,
-        attendanceRecords
+        attendanceRecords,
+        undefined,
+        useTransmutation
       )
     );
+    rawFinalGrade = defaultCategories.reduce((sum, c) => sum + (c.rawPercentage * c.category.weight) / 100, 0);
     finalGrade = defaultCategories.reduce((sum, c) => sum + c.weightedContribution, 0);
   } else if (activePeriods.length === 3) {
     // Full 3-quarter standard semestral calculation
     finalGrade = prelim.grade * 0.3 + midterm.grade * 0.3 + finals.grade * 0.4;
+    rawFinalGrade = (prelim.rawGrade || 0) * 0.3 + (midterm.rawGrade || 0) * 0.3 + (finals.rawGrade || 0) * 0.4;
   } else {
     // Proportional weighted average of active quarters
     const activeWeightSum = activePeriods.reduce((sum, p) => sum + p.weight, 0);
@@ -431,9 +574,16 @@ export function calculateStudentSubjectPerformance(
       0
     );
     finalGrade = (weightedPoints / (activeWeightSum / 100));
+
+    const rawWeightedPoints = activePeriods.reduce(
+      (sum, p) => sum + (p.rawGrade || 0) * (p.weight / 100),
+      0
+    );
+    rawFinalGrade = rawWeightedPoints / (activeWeightSum / 100);
   }
 
   finalGrade = Math.min(100, Math.max(0, Math.round(finalGrade * 10) / 10));
+  rawFinalGrade = Math.min(100, Math.max(0, Math.round(rawFinalGrade * 10) / 10));
 
   const overallCategories: CategoryScoreSummary[] = subject.matrix.map((cat) =>
     calculateCategorySummary(
@@ -442,7 +592,9 @@ export function calculateStudentSubjectPerformance(
       student.id,
       assessments,
       scores,
-      attendanceRecords
+      attendanceRecords,
+      undefined,
+      useTransmutation
     )
   );
 
@@ -451,7 +603,9 @@ export function calculateStudentSubjectPerformance(
   const gpa = convertToGPA(finalGrade);
 
   let remarks: 'Passed' | 'Failed' | 'Incomplete' | 'Honors' = 'Passed';
-  if (finalGrade >= 95) {
+  if (activePeriods.length === 0) {
+    remarks = 'Incomplete';
+  } else if (finalGrade >= 95) {
     remarks = 'Honors';
   } else if (!isPassing) {
     remarks = 'Failed';
@@ -463,10 +617,13 @@ export function calculateStudentSubjectPerformance(
     categories: overallCategories,
     attendanceRate: attStats.rate,
     finalGrade,
+    rawFinalGrade,
+    transmutedFinalGrade: finalGrade,
     gpa,
     isPassing,
     remarks,
     periods,
+    useTransmutation,
   };
 }
 

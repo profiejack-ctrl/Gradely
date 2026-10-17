@@ -16,6 +16,7 @@ import {
   clearOfflineQueue,
   flushOfflineQueue,
   dataApi,
+  hasSession,
   getToken,
 } from './apiClient';
 
@@ -68,7 +69,7 @@ class ApiSyncEngine {
     return {
       status: this.status,
       queueLength: loadOfflineQueue().length,
-      isConfigured: Boolean(getToken()),
+      isConfigured: hasSession(),
     };
   }
 
@@ -113,6 +114,9 @@ class ApiSyncEngine {
 
   async flushQueue(): Promise<{ success: boolean; syncedCount: number }> {
     if (this.isFlushing) return { success: true, syncedCount: 0 };
+    if (!hasSession() || !getToken()) {
+      return { success: false, syncedCount: 0 };
+    }
     const queue = loadOfflineQueue();
     if (queue.length === 0) {
       this.setStatus('synced');
@@ -149,7 +153,7 @@ class ApiSyncEngine {
   // -------------------------------------------------------------------------
 
   async pullAll() {
-    if (!getToken()) return null;
+    if (!hasSession()) return null;
     try {
       const res = await dataApi.loadAll();
       if (res.error || !res.data) return null;
@@ -176,54 +180,17 @@ class ApiSyncEngine {
     try {
       this.setStatus('syncing');
 
-      // Build mutations from full snapshot
-      const mutations: Array<{ table: string; action: 'UPSERT'; payload: any }> = [
-        ...data.users.map(u => ({
-          table: 'users', action: 'UPSERT' as const,
-          payload: {
-            id: u.id, name: u.name, email: u.email, role: u.role,
-            student_number: u.studentNumber || null,
-            section_id: (u.sectionIds || []).join(',') || (u.sectionId ? u.sectionId : null),
-            avatar: u.avatar || null, department: u.department || null, title: u.title || null,
-          }
-        })),
-        ...data.sections.map(s => ({
-          table: 'sections', action: 'UPSERT' as const,
-          payload: {
-            id: s.id, name: s.name, grade_level_or_year: s.gradeLevelOrYear,
-            academic_year: s.academicYear, semester: s.semester,
-            room: s.room || null,
-            description: s.description || '',
-            adviserId: s.adviserId,
-          }
-        })),
-        ...data.templates.map(t => ({
-          table: 'grading_matrix_templates', action: 'UPSERT' as const,
-          payload: { id: t.id, name: t.name, description: t.description || null, is_default: t.isDefault, passing_grade: t.passingGrade, matrix: t.matrix }
-        })),
-        ...data.subjects.map(s => ({
-          table: 'subjects', action: 'UPSERT' as const,
-          payload: { id: s.id, section_id: s.sectionId, teacher_id: s.teacherId, name: s.name, code: s.code, schedule: s.schedule, units: s.units, passing_grade: s.passingGrade, matrix: s.matrix }
-        })),
-        ...data.assessments.map(a => ({
-          table: 'assessments', action: 'UPSERT' as const,
-          payload: { id: a.id, subject_id: a.subjectId, category_id: a.categoryId, parent_category_id: a.parentCategoryId || null, period: a.period || 'prelim', title: a.title, max_score: a.maxScore, date: a.date, due_date: a.dueDate || null, description: a.description || null }
-        })),
-        ...data.scores.map(s => ({
-          table: 'score_records', action: 'UPSERT' as const,
-          payload: { id: s.id, assessment_id: s.assessmentId, student_id: s.studentId, score: s.score, remarks: s.remarks || null }
-        })),
-        ...data.attendance.map(a => ({
-          table: 'attendance_records', action: 'UPSERT' as const,
-          payload: { id: a.id, subject_id: a.subjectId, student_id: a.studentId, date: a.date, period: a.period || 'prelim', status: a.status, note: a.note || null }
-        })),
-        ...data.holidays.map(h => ({
-          table: 'holidays', action: 'UPSERT' as const,
-          payload: { id: h.id, date: h.date, title: h.title, type: h.type, description: h.description || null }
-        })),
-      ];
+      const res = await dataApi.pushAll({
+        users: data.users,
+        sections: data.sections,
+        matrixTemplates: data.templates,
+        subjects: data.subjects,
+        assessments: data.assessments,
+        scores: data.scores,
+        attendance: data.attendance,
+        holidays: data.holidays,
+      });
 
-      const res = await dataApi.sync(mutations);
       if (res.error) {
         this.setStatus('offline');
         return { success: false, error: res.error };

@@ -12,7 +12,6 @@ export interface User {
   title?: string;         // e.g. "Lead Instructor", "Professor"
   department?: string;    // e.g. "Computer Science & IT"
   mustChangePassword?: boolean; // Required to change temporary password on first login
-  customPassword?: string;      // Student custom password
 }
 
 export interface Section {
@@ -31,6 +30,7 @@ export interface MatrixSubCategory {
   name: string;             // e.g. "Attendance", "Performance Task", "Quizzes"
   weight: number;           // Weight within the parent category (e.g. 10%, 50%, 40% = 100%)
   description?: string;
+  isTransmutable?: boolean;
 }
 
 export interface MatrixCategory {
@@ -40,6 +40,7 @@ export interface MatrixCategory {
   description?: string;
   color?: string;           // Badge accent color
   subCategories?: MatrixSubCategory[]; // Sub-components (e.g. Attendance 10%, Performance Task 50%, Quizzes 40%)
+  isTransmutable?: boolean; // If false (e.g. Projects), grade is fixed and not passed through transmutation table
 }
 
 export interface GradingMatrixTemplate {
@@ -49,6 +50,7 @@ export interface GradingMatrixTemplate {
   isDefault?: boolean;
   passingGrade: number;
   matrix: MatrixCategory[];
+  useTransmutation?: boolean; // Whether BCP Annex A transmutation is enabled by default
 }
 
 export interface Subject {
@@ -61,6 +63,7 @@ export interface Subject {
   matrix: MatrixCategory[]; // Customizable grading matrix
   schedule?: string;        // e.g., "MWF 9:00 AM - 10:30 AM"
   units?: number;           // e.g., 3
+  useTransmutation?: boolean; // Whether BCP Annex A transmutation is applied (default: true)
 }
 
 export type GradingPeriod = 'prelim' | 'midterm' | 'finals';
@@ -119,8 +122,10 @@ export interface SubCategoryScoreSummary {
   earnedPoints: number;
   maxPoints: number;
   rawPercentage: number;
-  weightedContribution: number; // rawPercentage * (weight / 100)
+  transmutedPercentage?: number;
+  weightedContribution: number; // contribution to parent category
   assessmentCount: number;
+  isTransmutable?: boolean;
 }
 
 export interface CategoryScoreSummary {
@@ -128,16 +133,22 @@ export interface CategoryScoreSummary {
   earnedPoints: number;
   maxPoints: number;
   rawPercentage: number;        // (earned / max) * 100, or aggregated from subCategories
-  weightedContribution: number; // rawPercentage * (category.weight / 100)
+  transmutedPercentage?: number; // Transmuted grade or fixed grade
+  weightedContribution: number; // Effective contribution to period grade
   assessmentCount: number;
   subCategorySummaries?: SubCategoryScoreSummary[];
+  isTransmutable?: boolean;     // False for Project / fixed categories
+  isProject?: boolean;          // True if category represents Project
 }
 
 export interface PeriodGradeSummary {
   period: GradingPeriod;
   periodName: string;
   weight: number;               // Term weight, e.g. 30 for Prelim, 30 for Midterm, 40 for Finals
-  grade: number;                // Computed weighted percentage (0-100)
+  grade: number;                // Effective periodic grade (transmuted if enabled, raw if disabled)
+  rawGrade?: number;            // Untransmuted raw initial percentage (0-100)
+  transmutedGrade?: number;     // Transmuted collegiate grade (50-100) based on Annex A
+  useTransmutation?: boolean;   // Whether transmutation was active for this computation
   categories: CategoryScoreSummary[];
   attendanceRate: number;
   assessmentCount: number;
@@ -151,10 +162,13 @@ export interface StudentSubjectPerformance {
   categories: CategoryScoreSummary[];
   attendanceRate: number;    // %
   finalGrade: number;        // Computed semestral grade (30% Prelim + 30% Midterm + 40% Finals)
+  rawFinalGrade?: number;    // Raw semestral percentage before transmutation
+  transmutedFinalGrade?: number; // Transmuted semestral grade
   gpa: number;               // Converted Grade Point / GPA (1.00 - 5.00 collegiate scale)
   isPassing: boolean;
   remarks: 'Passed' | 'Failed' | 'Incomplete' | 'Honors';
   periods: Record<GradingPeriod, PeriodGradeSummary>;
+  useTransmutation?: boolean;
 }
 
 export interface WeeklyTopic {

@@ -139,7 +139,7 @@ export const FacultyManager: React.FC<FacultyManagerProps> = ({
 
     if (
       window.confirm(
-        `Reset password for "${teacher.name}" to the default initial password ("teacher123")?\n\nThey will be required to change their password upon their next login.`
+        `Generate a new temporary password for "${teacher.name}"?\n\nThey will be required to change it upon their next login.`
       )
     ) {
       const res = await resetUserPassword(teacher.id);
@@ -170,8 +170,13 @@ export const FacultyManager: React.FC<FacultyManagerProps> = ({
       updateTeacher(idToUpdate, data, password);
       onShowToast('Faculty Updated', `"${data.name}" profile and credentials updated.`, 'success');
     } else {
-      addTeacher(data, password || 'teacher123', mustChangePassword);
-      onShowToast('Faculty Account Created', `"${data.name}" added to department roster with default password "${password || 'teacher123'}".`, 'success');
+      void addTeacher(data, password, mustChangePassword).then((created) => {
+        if (created) {
+          onShowToast('Faculty Account Created', `"${data.name}" added to department roster. Share the temporary password securely.`, 'success');
+        } else {
+          onShowToast('Faculty Creation Failed', 'The faculty account could not be created. Please check the email and API connection.', 'error');
+        }
+      });
     }
   };
 
@@ -399,7 +404,7 @@ export const FacultyManager: React.FC<FacultyManagerProps> = ({
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => handleResetPassword(teacher)}
-                        title="Reset Password to Initial (teacher123)"
+                        title="Generate a new temporary password"
                         className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
                       >
                         <KeyRound className="w-4 h-4" />
@@ -478,7 +483,7 @@ export const FacultyManager: React.FC<FacultyManagerProps> = ({
                       <span>
                         Initial login:{' '}
                         <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[10px] text-slate-700 dark:text-slate-300">
-                          {teacher.customPassword || 'teacher123'}
+                          Password managed securely by the server
                         </code>
                       </span>
                     </span>

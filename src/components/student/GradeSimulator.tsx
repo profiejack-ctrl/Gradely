@@ -6,7 +6,7 @@ import { NeuCard } from '../common/NeuCard';
 import { NeuButton } from '../common/NeuButton';
 import { NeuBadge } from '../common/NeuBadge';
 import { NeuCircularGauge } from '../common/NeuProgress';
-import { calculateStudentSubjectPerformance, convertToGPA } from '../../utils/gradeCalculator';
+import { calculateStudentSubjectPerformance, convertToGPA, transmuteGrade, isProjectCategory } from '../../utils/gradeCalculator';
 import { getStudentEnrolledSubjects } from '../../utils/enrollmentUtils';
 import { Calculator, Sparkles, RefreshCw, ArrowLeft, Target } from 'lucide-react';
 
@@ -108,7 +108,10 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
         simulatedCategoryScores[cat.id] !== undefined
           ? simulatedCategoryScores[cat.id]
           : 85;
-      simulatedFinal += (rawVal * cat.weight) / 100;
+      const isProject = isProjectCategory(cat);
+      const canTransmute = currentSubject.useTransmutation !== false && !isProject && (cat.isTransmutable !== false);
+      const effectiveVal = canTransmute ? transmuteGrade(rawVal, true) : rawVal;
+      simulatedFinal += (effectiveVal * cat.weight) / 100;
     });
   }
 
@@ -380,21 +383,34 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
                   simulatedCategoryScores[cat.id] !== undefined
                     ? simulatedCategoryScores[cat.id]
                     : 85;
-                const weightedPts = Math.round(((currentVal * cat.weight) / 100) * 10) / 10;
+                const isProject = isProjectCategory(cat);
+                const canTransmute = currentSubject.useTransmutation !== false && !isProject && (cat.isTransmutable !== false);
+                const effectiveVal = canTransmute ? transmuteGrade(currentVal, true) : currentVal;
+                const weightedPts = Math.round(((effectiveVal * cat.weight) / 100) * 10) / 10;
 
                 return (
                   <div
                     key={cat.id}
                     className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-bold text-slate-900 dark:text-white">
                           {cat.name}
                         </span>
                         <NeuBadge variant="neutral" size="sm">
                           {cat.weight}% of Total
                         </NeuBadge>
+                        {isProject && (
+                          <span className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                            Fixed Grade
+                          </span>
+                        )}
+                        {canTransmute && (
+                          <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                            Transmuted: {effectiveVal}%
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-1.5">

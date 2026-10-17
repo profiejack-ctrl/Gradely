@@ -674,14 +674,17 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
               a.date === selectedDate
           );
 
-          const currentStatus: AttendanceStatus = rec?.status || 'present';
+          const hasRecord = Boolean(rec);
+          const currentStatus: AttendanceStatus | undefined = rec?.status;
           const periodToQuery = activePeriod === 'all' ? undefined : activePeriod;
           const stats = calculateAttendanceStats(attendance, student.id, activeSubject.id, periodToQuery);
 
           return (
             <NeuCard
               key={student.id}
-              className="p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3.5"
+              className={`p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3.5 transition-all ${
+                !hasRecord ? 'border-dashed border-slate-300 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/30' : ''
+              }`}
             >
               {/* Student Profile Info */}
               <div className="flex items-center gap-3 min-w-0 md:w-1/3">
@@ -691,9 +694,16 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                   className="w-10 h-10 rounded-xl object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
                 />
                 <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
-                    {formatLastFirst(student.name)}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                      {formatLastFirst(student.name)}
+                    </h3>
+                    {!hasRecord && (
+                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded-md border border-amber-200/80 dark:border-amber-800/80">
+                        Pending Roll
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
                     <span>{student.studentNumber || 'No ID'}</span>
                     <span>•</span>
@@ -718,12 +728,12 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                   type="button"
                   onClick={() => handleStatusChange(student.id, 'present')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                    currentStatus === 'present'
-                      ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    hasRecord && currentStatus === 'present'
+                      ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
                   }`}
                 >
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <Check className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'present' ? 'text-white' : 'text-emerald-600'}`} />
                   <span>Present</span>
                 </button>
 
@@ -731,12 +741,12 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                   type="button"
                   onClick={() => handleStatusChange(student.id, 'late')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                    currentStatus === 'late'
-                      ? 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-300 shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    hasRecord && currentStatus === 'late'
+                      ? 'bg-amber-500 text-white shadow-xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
                   }`}
                 >
-                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <Clock className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'late' ? 'text-white' : 'text-amber-600'}`} />
                   <span>Late</span>
                 </button>
 
@@ -744,12 +754,12 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                   type="button"
                   onClick={() => handleStatusChange(student.id, 'absent')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                    currentStatus === 'absent'
-                      ? 'bg-white dark:bg-slate-900 text-rose-700 dark:text-rose-300 shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    hasRecord && currentStatus === 'absent'
+                      ? 'bg-rose-600 text-white shadow-xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
                   }`}
                 >
-                  <X className="w-3.5 h-3.5 text-rose-600" />
+                  <X className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'absent' ? 'text-white' : 'text-rose-600'}`} />
                   <span>Absent</span>
                 </button>
 
@@ -757,12 +767,12 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                   type="button"
                   onClick={() => handleStatusChange(student.id, 'excused')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                    currentStatus === 'excused'
-                      ? 'bg-white dark:bg-slate-900 text-sky-700 dark:text-sky-300 shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    hasRecord && currentStatus === 'excused'
+                      ? 'bg-sky-600 text-white shadow-xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-sky-700 dark:hover:text-sky-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
                   }`}
                 >
-                  <ShieldAlert className="w-3.5 h-3.5 text-sky-600" />
+                  <ShieldAlert className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'excused' ? 'text-white' : 'text-sky-600'}`} />
                   <span>Excused</span>
                 </button>
               </div>
@@ -773,7 +783,7 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                   type="text"
                   placeholder="Optional remark / reason..."
                   value={rec?.note || ''}
-                  onChange={(e) => handleNoteChange(student.id, currentStatus, e.target.value)}
+                  onChange={(e) => handleNoteChange(student.id, currentStatus || 'present', e.target.value)}
                   className="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
                 />
               </div>

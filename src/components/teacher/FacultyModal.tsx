@@ -42,7 +42,7 @@ export const FacultyModal: React.FC<FacultyModalProps> = ({
   const [title, setTitle] = useState('Assistant Professor');
   const [role, setRole] = useState<'teacher' | 'dean'>('teacher');
   const [department, setDepartment] = useState(defaultDepartment);
-  const [password, setPassword] = useState('teacher123');
+  const [password, setPassword] = useState('');
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [avatar, setAvatar] = useState('');
 
@@ -62,7 +62,7 @@ export const FacultyModal: React.FC<FacultyModalProps> = ({
       setTitle('Assistant Professor');
       setRole('teacher');
       setDepartment(defaultDepartment);
-      setPassword('teacher123');
+      setPassword('');
       setMustChangePassword(false);
       setAvatar('');
     }
@@ -71,6 +71,7 @@ export const FacultyModal: React.FC<FacultyModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
+    if (!facultyToEdit && password.trim().length < 8) return;
 
     const generatedAvatar =
       avatar.trim() ||
@@ -186,7 +187,7 @@ export const FacultyModal: React.FC<FacultyModalProps> = ({
           <NeuInput
             label={facultyToEdit ? 'New Password (Leave blank to keep current)' : 'Initial Password'}
             type="text"
-            placeholder={facultyToEdit ? 'Enter to change password' : 'e.g. teacher123'}
+            placeholder={facultyToEdit ? 'Enter to change password' : 'Minimum 8 characters'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />

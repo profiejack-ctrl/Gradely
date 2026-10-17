@@ -1,13 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, UserRole } from '../types';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { INITIAL_USERS } from '../data/initialData';
-import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-import { syncEngine } from '../services/syncEngine';
-import { authVault, StoredCredential, CREDENTIALS_STORAGE_KEY } from '../services/authVault';
-import { formatSectionIds, parseSectionIds } from '../utils/enrollmentUtils';
-
-export { CREDENTIALS_STORAGE_KEY };
-export type { StoredCredential };
+import { User, UserRole } from '../types';
+import { authApi, clearToken, hasSession, setToken } from '../services/apiClient';
+import { syncEngine } from '../services/apiSyncEngine';
 
 export interface SignUpParams {
   email: string;
@@ -21,6 +16,15 @@ export interface SignUpParams {
   avatar?: string;
 }
 
+export interface StoredCredential { mustChangePassword?: boolean; }
+export const USERS_STORAGE_KEY = 'gradely_data_store_v3_users';
+export const CURRENT_USER_KEY = 'gradely_current_user_v2';
+export const CREDENTIALS_STORAGE_KEY = 'gradely_auth_credentials_v2';
+
+// Compatibility exports. Passwords are never persisted in the browser.
+export const getStoredCredential = (_identifier?: string): StoredCredential | null => null;
+export const saveStoredCredential = async (_user: User, _password?: string, _mustChange?: boolean): Promise<void> => {};
+
 interface AuthContextType {
   currentUser: User | null;
   users: User[];
@@ -30,10 +34,12 @@ interface AuthContextType {
   isLoading: boolean;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
-  signIn: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
+  signIn: (identifier: string, password?: string) => Promise<{ success: boolean; error?: string }>;
   signUp: (params: SignUpParams) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   updateStudentPassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  sendEmailOtp: (email: string) => Promise<{ success: boolean; message?: string; devOtp?: string; error?: string }>;
+  completeStudentOnboarding: (newPassword: string, email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (data: Partial<User>, newPassword?: string, currentPassword?: string) => Promise<{ success: boolean; error?: string }>;
   verifyCurrentPassword: (candidatePassword: string) => Promise<boolean>;
   quickLogin: (userOrId: User | string) => void;
@@ -43,904 +49,234 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const USERS_STORAGE_KEY = 'gradely_data_store_v3_users';
-export const CURRENT_USER_KEY = 'gradely_current_user_v2';
+function clearSensitiveCache() {
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (key?.startsWith('gradely_data_store_v3_') || key === 'gradely_offline_api_queue_v1') {
+      localStorage.removeItem(key);
+    }
+  }
+}
 
-export const getStoredCredential = (identifier?: string): StoredCredential | null => {
-  return authVault.getCredential(identifier);
-};
+function safeUser(user: User): User {
+  return { ...user };
+}
 
-export const saveStoredCredential = async (user: User, password?: string, mustChange?: boolean): Promise<void> => {
-  await authVault.saveCredential(user, password, mustChange);
-};
+function loadCachedUsers(): User[] {
+  try {
+    const saved = localStorage.getItem(USERS_STORAGE_KEY);
+    const users = saved ? JSON.parse(saved) : INITIAL_USERS;
+    return Array.isArray(users) ? users.map(safeUser) : [];
+  } catch {
+    return INITIAL_USERS.map(safeUser);
+  }
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [users, setUsers] = useState<User[]>(() => {
-    try {
-      const saved = localStorage.getItem(USERS_STORAGE_KEY) || localStorage.getItem('aurasms_data_store_v3_users');
-      return saved ? JSON.parse(saved) : INITIAL_USERS;
-    } catch {
-      return INITIAL_USERS;
-    }
-  });
+  const [users, setUsers] = useState<User[]>(loadCachedUsers);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => localStorage.getItem('gradely_theme') === 'dark' ? 'dark' : 'light');
 
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    try {
-      const saved = localStorage.getItem(CURRENT_USER_KEY) || localStorage.getItem('aurasms_current_user_v2');
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {}
-    return null; // Will show AuthPage when null
-  });
+  const refreshUsers = useCallback(() => setUsers(loadCachedUsers()), []);
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const saved = localStorage.getItem('gradely_theme') || localStorage.getItem('aurasms_theme');
-    if (saved === 'dark' || saved === 'light') return saved;
-    return 'light';
-  });
-
-  // Reload local cached users
-  const refreshUsers = useCallback(() => {
-    try {
-      const saved = localStorage.getItem(USERS_STORAGE_KEY);
-      if (saved) {
-        setUsers(JSON.parse(saved));
-      }
-    } catch (e) {
-      console.error('Failed to refresh users cache', e);
-    }
-  }, []);
-
-  // Listen to Supabase Auth State & initialize session
   useEffect(() => {
     let mounted = true;
-
-    const initAuth = async () => {
-      setIsLoading(true);
-      await authVault.syncDown();
-      if (isSupabaseConfigured && supabase) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user && mounted) {
-            // Find user in Supabase table
-            const { data: profile } = await supabase
-              .from('users')
-              .select('*')
-              .eq('email', session.user.email)
-              .maybeSingle();
-
-            if (profile) {
-              const cred =
-                getStoredCredential(profile.id) ||
-                (profile.email ? getStoredCredential(profile.email) : null) ||
-                (profile.student_number ? getStoredCredential(profile.student_number) : null);
-
-              const secIds = parseSectionIds(profile.section_id);
-              const matchedUser: User = {
-                id: profile.id,
-                name: profile.name,
-                email: profile.email,
-                role: profile.role,
-                avatar: profile.avatar || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
-                studentNumber: profile.student_number || undefined,
-                sectionId: secIds[0] || undefined,
-                sectionIds: secIds,
-                department: profile.department || undefined,
-                title: profile.title || undefined,
-                customPassword: cred?.customPassword,
-                mustChangePassword: cred ? cred.mustChangePassword : (profile.role === 'student'),
-              };
-              setCurrentUser(matchedUser);
-            }
-          }
-        } catch (err) {
-          console.warn('Supabase auth session check offline or skipped:', err);
-        }
+    const restoreSession = async () => {
+      if (!hasSession()) {
+        if (mounted) setIsLoading(false);
+        return;
       }
-      if (mounted) {
-        setIsLoading(false);
-      }
+      const response = await authApi.me();
+      if (mounted && response.data) setCurrentUser(safeUser(response.data as User));
+      else clearToken();
+      if (mounted) setIsLoading(false);
     };
-
-    initAuth();
-
-    // Realtime auth listener
-    let authSubscription: any = null;
-    if (isSupabaseConfigured && supabase) {
-      const client = supabase;
-      const { data } = client.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_OUT') {
-          setCurrentUser(null);
-        } else if (session?.user && event === 'SIGNED_IN') {
-          const { data: profile } = await client
-            .from('users')
-            .select('*')
-            .eq('email', session.user.email)
-            .maybeSingle();
-
-          if (profile) {
-            const cred =
-              getStoredCredential(profile.id) ||
-              (profile.email ? getStoredCredential(profile.email) : null) ||
-              (profile.student_number ? getStoredCredential(profile.student_number) : null);
-
-            const secIds = parseSectionIds(profile.section_id);
-            setCurrentUser({
-              id: profile.id,
-              name: profile.name,
-              email: profile.email,
-              role: profile.role,
-              avatar: profile.avatar || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
-              studentNumber: profile.student_number || undefined,
-              sectionId: secIds[0] || undefined,
-              sectionIds: secIds,
-              department: profile.department || undefined,
-              title: profile.title || undefined,
-              customPassword: cred?.customPassword,
-              mustChangePassword: cred ? cred.mustChangePassword : (profile.role === 'student'),
-            });
-          }
-        }
-      });
-      authSubscription = data.subscription;
-    }
-
+    void restoreSession();
+    const handleUnauthorized = () => {
+      setCurrentUser(null);
+    };
+    window.addEventListener('gradely:auth_unauthorized', handleUnauthorized);
     return () => {
       mounted = false;
-      if (authSubscription) authSubscription.unsubscribe();
+      window.removeEventListener('gradely:auth_unauthorized', handleUnauthorized);
     };
   }, []);
 
-  // Sync active user to local storage
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem(CURRENT_USER_KEY);
-    }
+    localStorage.removeItem(CURRENT_USER_KEY);
+    localStorage.removeItem(CREDENTIALS_STORAGE_KEY);
+    localStorage.removeItem('aurasms_auth_credentials_v2');
   }, [currentUser]);
 
-  // Keep currentUser in sync when user data is updated (e.g. multi-class enrollment modified)
-  useEffect(() => {
-    if (!currentUser) return;
-    const freshUser = users.find((u) => u.id === currentUser.id);
-    if (freshUser) {
-      const freshSecIds = freshUser.sectionIds || (freshUser.sectionId ? parseSectionIds(freshUser.sectionId) : []);
-      const curSecIds = currentUser.sectionIds || (currentUser.sectionId ? parseSectionIds(currentUser.sectionId) : []);
-      if (
-        freshSecIds.join(',') !== curSecIds.join(',') ||
-        freshUser.name !== currentUser.name ||
-        freshUser.avatar !== currentUser.avatar ||
-        freshUser.studentNumber !== currentUser.studentNumber
-      ) {
-        const merged: User = {
-          ...currentUser,
-          ...freshUser,
-          sectionId: freshSecIds[0] || freshUser.sectionId,
-          sectionIds: freshSecIds,
-        };
-        setCurrentUser(merged);
-        try {
-          localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(merged));
-        } catch (e) {}
-      }
-    }
-  }, [users, currentUser?.id]);
-
-  // Theme synchronization
   useEffect(() => {
     localStorage.setItem('gradely_theme', theme);
-    const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-      root.classList.remove('light');
-    } else {
-      root.classList.add('light');
-      root.classList.remove('dark');
-    }
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.classList.toggle('light', theme === 'light');
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
-  };
+  const toggleTheme = () => setTheme(value => value === 'light' ? 'dark' : 'light');
 
-  /**
-   * Update student password on first-time login
-   */
-  const updateStudentPassword = async (newPassword: string): Promise<{ success: boolean; error?: string }> => {
-    if (!currentUser) return { success: false, error: 'No user is currently signed in.' };
-
-    const cleanPass = newPassword.trim();
-    if (cleanPass.length < 6) {
-      return { success: false, error: 'Password must be at least 6 characters long.' };
-    }
-
-    const updatedUser: User = {
-      ...currentUser,
-      mustChangePassword: false,
-      customPassword: cleanPass,
-    };
-
-    // Save to dedicated persistent credentials store
-    await saveStoredCredential(updatedUser, cleanPass, false);
-
-    // 1. Update current session state & local storage
-    setCurrentUser(updatedUser);
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
-
-    // 2. Update users cache in local storage
-    setUsers((prev) => {
-      const copy = prev.map((u) => (u.id === currentUser.id ? updatedUser : u));
-      try {
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(copy));
-      } catch (e) {}
-      return copy;
-    });
-
-    // 3. Enqueue to Supabase table with encoded credential fallback
-    syncEngine.enqueue('users', 'UPSERT', {
-      id: updatedUser.id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      role: updatedUser.role,
-      student_number: updatedUser.studentNumber || null,
-      section_id: formatSectionIds(updatedUser.sectionIds || (updatedUser.sectionId ? [updatedUser.sectionId] : [])) || null,
-      avatar: updatedUser.avatar || null,
-      department: JSON.stringify({ customPassword: cleanPass, mustChangePassword: false }),
-      title: updatedUser.title || null,
-    });
-
-    // 4. Update Supabase Auth if online
-    if (isSupabaseConfigured && supabase) {
-      try {
-        await supabase.auth.updateUser({ password: cleanPass });
-      } catch (err) {
-        console.warn('Supabase auth password update skipped or local only:', err);
-      }
-    }
-
-    return { success: true };
-  };
-
-  /**
-   * Verify candidate password against current user credentials
-   */
-  const verifyCurrentPassword = async (candidatePassword: string): Promise<boolean> => {
-    if (!currentUser) return false;
-    const cleanCand = (candidatePassword || '').trim();
-    if (!cleanCand) return false;
-
-    // 1. Direct match with in-memory customPassword
-    if (currentUser.customPassword && cleanCand === currentUser.customPassword) {
-      return true;
-    }
-
-    // 2. Direct match with authVault stored credential
-    const cred =
-      authVault.getCredential(currentUser.id) ||
-      (currentUser.email ? authVault.getCredential(currentUser.email) : null) ||
-      (currentUser.studentNumber ? authVault.getCredential(currentUser.studentNumber) : null);
-
-    if (cred?.customPassword && cleanCand === cred.customPassword) {
-      return true;
-    }
-
-    // 3. Fallback to default initial credentials if user has not set a custom password yet
-    if (!currentUser.customPassword && !cred?.customPassword) {
-      if (currentUser.role === 'student') {
-        if (
-          cleanCand === currentUser.studentNumber ||
-          cleanCand === 'student123' ||
-          cleanCand === 'password'
-        ) {
-          return true;
-        }
-      } else {
-        if (
-          cleanCand === 'teacher123' ||
-          cleanCand === 'admin123' ||
-          cleanCand === 'admin' ||
-          cleanCand === 'password' ||
-          cleanCand === 'faculty123' ||
-          cleanCand === currentUser.email ||
-          cleanCand.toLowerCase() === currentUser.name.toLowerCase()
-        ) {
-          return true;
-        }
-      }
-    }
-
-    // 4. Fallback to Supabase Auth direct sign in if online and user has email
-    if (isSupabaseConfigured && supabase && currentUser.email) {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: currentUser.email,
-          password: cleanCand,
-        });
-        if (!error && data?.user) {
-          return true;
-        }
-      } catch (err) {
-        // ignore
-      }
-    }
-
-    return false;
-  };
-
-  /**
-   * Update User Profile (Faculty or Student)
-   */
-  const updateProfile = async (
-    data: Partial<User>,
-    newPassword?: string,
-    currentPassword?: string
-  ): Promise<{ success: boolean; error?: string }> => {
-    if (!currentUser) return { success: false, error: 'No user is currently signed in.' };
-
-    const cleanPass = newPassword ? newPassword.trim() : undefined;
-    if (cleanPass) {
-      if (cleanPass.length < 6) {
-        return { success: false, error: 'New password must be at least 6 characters long.' };
-      }
-
-      if (!currentPassword || !currentPassword.trim()) {
-        return { success: false, error: 'Current password is required to change password.' };
-      }
-
-      const isCurrentCorrect = await verifyCurrentPassword(currentPassword);
-      if (!isCurrentCorrect) {
-        return { success: false, error: 'Incorrect current password. Please re-enter your current password.' };
-      }
-
-      if (cleanPass === currentPassword.trim()) {
-        return { success: false, error: 'New password cannot be the same as your current password.' };
-      }
-    }
-
-    const finalPass = cleanPass || currentUser.customPassword;
-    const mustChange = cleanPass ? false : currentUser.mustChangePassword;
-
-    const updatedUser: User = {
-      ...currentUser,
-      ...data,
-      customPassword: finalPass,
-      mustChangePassword: mustChange,
-    };
-
-    // Save to dedicated persistent credentials store
-    if (finalPass) {
-      saveStoredCredential(updatedUser, finalPass, mustChange);
-    }
-
-    // 1. Update current session state & local storage
-    setCurrentUser(updatedUser);
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
-
-    // 2. Update in cached users list
-    setUsers((prev) => {
-      const copy = prev.map((u) => (u.id === currentUser.id ? updatedUser : u));
-      try {
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(copy));
-      } catch (e) {}
-      return copy;
-    });
-
-    // 3. Enqueue to Supabase table
-    const finalSecIds = updatedUser.sectionIds || (updatedUser.sectionId ? parseSectionIds(updatedUser.sectionId) : []);
-    syncEngine.enqueue('users', 'UPSERT', {
-      id: updatedUser.id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      role: updatedUser.role,
-      student_number: updatedUser.studentNumber || null,
-      section_id: formatSectionIds(finalSecIds),
-      avatar: updatedUser.avatar || null,
-      department: updatedUser.department || null,
-      title: updatedUser.title || null,
-    });
-
-    // 4. Update Supabase Auth if online and password provided
-    if (cleanPass && isSupabaseConfigured && supabase) {
-      try {
-        await supabase.auth.updateUser({ password: cleanPass });
-      } catch (err) {
-        console.warn('Supabase auth password update error:', err);
-      }
-    }
-
-    return { success: true };
-  };
-
-  /**
-   * Sign In with Email or Student ID Number & Password (with Cloud & Local support)
-   */
-  const signIn = async (identifier: string, password?: string): Promise<{ success: boolean; error?: string }> => {
+  const signIn = async (identifier: string, password?: string) => {
     setIsLoading(true);
-    const rawId = (identifier || '').trim();
-    const cleanId = rawId.toLowerCase();
-    const cleanPassword = (password || '').trim();
-
-    if (!cleanId) {
+    if (!identifier.trim() || !password?.trim()) {
       setIsLoading(false);
-      return { success: false, error: 'Please enter your Student ID, Email, or Full Name.' };
+      return { success: false, error: 'Student ID / Email and password are required.' };
     }
-
-    // Always sync down latest cloud credentials first so updates made on production/mobile are immediately recognized
-    await authVault.syncDown();
-
-    // 1. Get cached local users
-    const localUsers: User[] = (() => {
-      try {
-        const saved = localStorage.getItem(USERS_STORAGE_KEY);
-        const parsed = saved ? JSON.parse(saved) : [];
-        // Merge with INITIAL_USERS to ensure demo/seed users are always available
-        const merged = [...parsed];
-        for (const initU of INITIAL_USERS) {
-          if (!merged.some((u: User) => u.id === initU.id || u.email.toLowerCase() === initU.email.toLowerCase())) {
-            merged.push(initU);
-          }
-        }
-        return merged;
-      } catch {
-        return INITIAL_USERS;
-      }
-    })();
-
-    // 2. Search in local users
-    let matchedUser = localUsers.find(
-      (u) =>
-        u.id?.toLowerCase() === cleanId ||
-        u.email?.toLowerCase() === cleanId ||
-        (u.studentNumber && u.studentNumber.toLowerCase() === cleanId) ||
-        u.name?.toLowerCase() === cleanId ||
-        (u.name && (u.name.toLowerCase().includes(cleanId) || cleanId.includes(u.name.toLowerCase())))
-    );
-
-    // 3. Search in Supabase if online (using safe individual queries to prevent PostgREST dot/syntax errors)
-    if (isSupabaseConfigured && supabase) {
-      try {
-        let cloudProfile: any = null;
-
-        // Try lookup by email if contains @
-        if (cleanId.includes('@')) {
-          const { data } = await supabase
-            .from('users')
-            .select('*')
-            .ilike('email', cleanId)
-            .maybeSingle();
-          if (data) cloudProfile = data;
-        }
-
-        // Try lookup by student_number
-        if (!cloudProfile) {
-          const { data } = await supabase
-            .from('users')
-            .select('*')
-            .eq('student_number', rawId)
-            .maybeSingle();
-          if (data) cloudProfile = data;
-        }
-
-        // Try lookup by id
-        if (!cloudProfile) {
-          const { data } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', rawId)
-            .maybeSingle();
-          if (data) cloudProfile = data;
-        }
-
-        // Try lookup by name
-        if (!cloudProfile) {
-          const { data } = await supabase
-            .from('users')
-            .select('*')
-            .ilike('name', rawId)
-            .maybeSingle();
-          if (data) cloudProfile = data;
-        }
-
-        if (cloudProfile) {
-          let embeddedCred: StoredCredential | null = null;
-          if (cloudProfile.department && cloudProfile.department.startsWith('{')) {
-            try {
-              embeddedCred = JSON.parse(cloudProfile.department);
-            } catch (e) {}
-          }
-
-          const cred =
-            authVault.getCredential(cloudProfile.id) ||
-            (cloudProfile.email ? authVault.getCredential(cloudProfile.email) : null) ||
-            (cloudProfile.student_number ? authVault.getCredential(cloudProfile.student_number) : null) ||
-            embeddedCred;
-
-          const secIds = parseSectionIds(cloudProfile.section_id);
-          const mappedCloudUser: User = {
-            id: cloudProfile.id,
-            name: cloudProfile.name,
-            email: cloudProfile.email,
-            role: (cloudProfile.role as UserRole) || (cloudProfile.student_number ? 'student' : 'teacher'),
-            avatar:
-              cloudProfile.avatar ||
-              `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cloudProfile.name)}`,
-            studentNumber: cloudProfile.student_number || undefined,
-            sectionId: secIds[0] || undefined,
-            sectionIds: secIds,
-            department: (embeddedCred && cloudProfile.role === 'student') ? undefined : cloudProfile.department || undefined,
-            title: cloudProfile.title || undefined,
-            mustChangePassword:
-              cred ? Boolean(cred.mustChangePassword) : cloudProfile.role === 'student',
-            customPassword: cred?.customPassword,
-          };
-
-          matchedUser = matchedUser
-            ? { ...matchedUser, ...mappedCloudUser, customPassword: cred?.customPassword ?? matchedUser.customPassword, mustChangePassword: cred?.mustChangePassword ?? matchedUser.mustChangePassword }
-            : mappedCloudUser;
-        }
-      } catch (err: any) {
-        console.warn('Supabase cloud profile query error:', err);
-      }
-    }
-
-    // 4. If user not found, try Supabase Auth direct sign in if email + password provided
-    if (!matchedUser && isSupabaseConfigured && supabase && cleanId.includes('@') && cleanPassword) {
-      try {
-        const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
-          email: cleanId,
-          password: cleanPassword,
-        });
-        if (!authErr && authData?.user) {
-          const u = authData.user;
-          matchedUser = {
-            id: u.id,
-            name: u.user_metadata?.name || u.email?.split('@')[0] || 'User',
-            email: u.email || cleanId,
-            role: (u.user_metadata?.role as UserRole) || 'teacher',
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.email || 'user')}`,
-            studentNumber: u.user_metadata?.studentNumber || undefined,
-            sectionId: u.user_metadata?.sectionId || undefined,
-          };
-        }
-      } catch (e) {
-        console.warn('Supabase direct auth login check error:', e);
-      }
-    }
-
-    // If still no account found
-    if (!matchedUser) {
+    const response = await authApi.login(identifier.trim(), password.trim());
+    if (response.error || !response.data) {
       setIsLoading(false);
-      return {
-        success: false,
-        error: `No account found matching "${rawId}". Please verify your Student ID, Email, or Full Name.`,
-      };
+      return { success: false, error: response.error || 'Invalid Student ID / Email or password.' };
     }
-
-    const userObj: User = { ...matchedUser };
-
-    // Retrieve from dedicated persistent credentials store
-    const storedCred =
-      getStoredCredential(userObj.id) ||
-      (userObj.email ? getStoredCredential(userObj.email) : null) ||
-      (userObj.studentNumber ? getStoredCredential(userObj.studentNumber) : null);
-
-    if (storedCred) {
-      if (storedCred.customPassword) {
-        userObj.customPassword = storedCred.customPassword;
-      }
-      if (typeof storedCred.mustChangePassword === 'boolean') {
-        userObj.mustChangePassword = storedCred.mustChangePassword;
-      }
-    }
-
-    // 5. Verify Student credentials
-    if (userObj.role === 'student') {
-      const initialPass = userObj.studentNumber ? userObj.studentNumber.trim() : 'student123';
-      const requiresChange = Boolean(userObj.mustChangePassword || storedCred?.mustChangePassword);
-
-      if (requiresChange) {
-        // Account requires initial setup or was reset by instructor
-        const isInitialPassMatch =
-          cleanPassword === initialPass ||
-          cleanPassword === 'student123' ||
-          (userObj.studentNumber && cleanPassword === userObj.studentNumber) ||
-          (userObj.customPassword && cleanPassword === userObj.customPassword);
-
-        if (isInitialPassMatch) {
-          // Keep mustChangePassword true so the mandatory change modal triggers upon login
-          userObj.mustChangePassword = true;
-        } else {
-          setIsLoading(false);
-          return {
-            success: false,
-            error: `Your password requires setup or was reset. Please sign in using your Student ID (${initialPass}) to proceed.`,
-          };
-        }
-      } else if (userObj.customPassword) {
-        // Standard login using active custom password
-        if (cleanPassword === userObj.customPassword) {
-          userObj.mustChangePassword = false;
-        } else if (cleanPassword === userObj.studentNumber || cleanPassword === 'student123') {
-          setIsLoading(false);
-          return {
-            success: false,
-            error: 'Temporary password expired. Please sign in using your updated custom password.',
-          };
-        } else if (!cleanPassword) {
-          setIsLoading(false);
-          return {
-            success: false,
-            error: 'Password is required for student login.',
-          };
-        } else {
-          setIsLoading(false);
-          return {
-            success: false,
-            error: 'Incorrect password for this student account.',
-          };
-        }
-      } else {
-        // First-time student login (temporary password is Student ID or empty or student123)
-        const isTempMatch =
-          !cleanPassword ||
-          cleanPassword === userObj.studentNumber ||
-          cleanPassword === rawId ||
-          cleanPassword === 'student123' ||
-          cleanPassword === 'password';
-
-        if (isTempMatch) {
-          userObj.mustChangePassword = true;
-        } else {
-          setIsLoading(false);
-          return {
-            success: false,
-            error: `Invalid password. For first-time student login, use your Student ID (${initialPass}) as your temporary password.`,
-          };
-        }
-      }
-    }
-
-    // 6. Verify Faculty / Teacher / Dean credentials
-    if (userObj.role === 'teacher' || userObj.role === 'dean') {
-      let isTeacherAuthSuccess = false;
-      const requiresChange = Boolean(userObj.mustChangePassword || storedCred?.mustChangePassword);
-
-      // Check custom password if set
-      if (userObj.customPassword && cleanPassword === userObj.customPassword) {
-        isTeacherAuthSuccess = true;
-        if (requiresChange) {
-          userObj.mustChangePassword = true;
-        }
-      }
-
-      // Check Supabase Auth if online and password given
-      if (!isTeacherAuthSuccess && isSupabaseConfigured && supabase && cleanPassword) {
-        try {
-          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email: userObj.email,
-            password: cleanPassword,
-          });
-          if (!authError && authData?.user) {
-            isTeacherAuthSuccess = true;
-          }
-        } catch (e) {
-          console.warn('Supabase auth check bypassed:', e);
-        }
-      }
-
-      // Allow standard default / demo credentials for faculty
-      if (
-        !isTeacherAuthSuccess &&
-        (!cleanPassword ||
-          cleanPassword === 'teacher123' ||
-          cleanPassword === 'admin123' ||
-          cleanPassword === 'admin' ||
-          cleanPassword === 'password' ||
-          cleanPassword === 'faculty123' ||
-          cleanPassword === userObj.email ||
-          cleanPassword.toLowerCase() === userObj.name.toLowerCase())
-      ) {
-        isTeacherAuthSuccess = true;
-        if (requiresChange) {
-          userObj.mustChangePassword = true;
-        }
-      }
-
-      if (!isTeacherAuthSuccess) {
-        setIsLoading(false);
-        return {
-          success: false,
-          error: 'Incorrect password for faculty account. Default initial password is "teacher123".',
-        };
-      }
-    }
-
-    // 7. Save authenticated user session and persist to local cache
-    setCurrentUser(userObj);
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userObj));
-
-    setUsers((prev) => {
-      const filtered = prev.filter(
-        (u) => u.id !== userObj.id && u.email.toLowerCase() !== userObj.email.toLowerCase()
-      );
-      const updated = [...filtered, userObj];
-      try {
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
-
-    setIsLoading(false);
-    return { success: true };
-  };
-
-  /**
-   * Sign Up new Instructor or Student
-   */
-  const signUp = async (params: SignUpParams): Promise<{ success: boolean; error?: string }> => {
-    setIsLoading(true);
-    const cleanEmail = params.email.trim().toLowerCase();
-    const newId = `${params.role === 'teacher' ? 'teacher' : 'stud'}-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 3)}`;
-
-    const newUser: User = {
-      id: newId,
-      name: params.name.trim(),
-      email: cleanEmail,
-      role: params.role,
-      avatar:
-        params.avatar ||
-        (params.role === 'teacher'
-          ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-          : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'),
-      studentNumber: params.studentNumber?.trim() || undefined,
-      sectionId: params.sectionId || undefined,
-      department: params.department?.trim() || undefined,
-      title: params.title?.trim() || undefined,
-    };
-
-    // 1. Try Supabase Auth registration if online
-    if (isSupabaseConfigured && supabase && params.password) {
-      try {
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password: params.password,
-          options: {
-            data: {
-              name: newUser.name,
-              role: newUser.role,
-            },
-          },
-        });
-
-        if (authError && !authError.message.includes('already registered')) {
-          console.warn('Supabase Auth error:', authError.message);
-        }
-
-        // Upsert into Supabase public users table
-        const profileId = authData?.user?.id || newId;
-        newUser.id = profileId;
-
-        await supabase.from('users').upsert(
-          {
-            id: newUser.id,
-            name: newUser.name,
-            email: newUser.email,
-            role: newUser.role,
-            student_number: newUser.studentNumber || null,
-            section_id: newUser.sectionId || null,
-            avatar: newUser.avatar,
-            department: newUser.department || null,
-            title: newUser.title || null,
-          },
-          { onConflict: 'email' }
-        );
-      } catch (err: any) {
-        console.warn('Supabase signup network error, registering locally:', err);
-      }
-    }
-
-    // 2. Save locally
-    try {
-      const currentUsers: User[] = (() => {
-        const saved = localStorage.getItem(USERS_STORAGE_KEY);
-        return saved ? JSON.parse(saved) : INITIAL_USERS;
-      })();
-
-      const filtered = currentUsers.filter((u) => u.email.toLowerCase() !== cleanEmail);
-      const updated = [...filtered, newUser];
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updated));
-      setUsers(updated);
-    } catch (e) {
-      console.error('Failed to save user to local storage', e);
-    }
-
-    setCurrentUser(newUser);
-    setIsLoading(false);
-    return { success: true };
-  };
-
-  /**
-   * Sign Out
-   */
-  const signOut = async () => {
-    setIsLoading(true);
-    if (isSupabaseConfigured && supabase) {
-      try {
-        await supabase.auth.signOut();
-      } catch (e) {
-        console.warn('Supabase sign-out network error:', e);
-      }
-    }
-    setCurrentUser(null);
-    localStorage.removeItem(CURRENT_USER_KEY);
-    setIsLoading(false);
-  };
-
-  /**
-   * Fast Demo Login Switcher
-   */
-  const quickLogin = (userOrId: User | string) => {
-    let target: User | undefined;
-    if (typeof userOrId === 'string') {
-      target = users.find((u) => u.id === userOrId);
-    } else {
-      target = userOrId;
-    }
-    if (target) {
-      setCurrentUser(target);
-      try {
-        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(target));
-      } catch (e) {}
-    }
-  };
-
-  const switchUser = (user: User) => {
+    const result = response.data as { token: string; user: User };
+    setToken(result.token);
+    const user = safeUser(result.user);
     setCurrentUser(user);
-    try {
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
-    } catch (e) {}
+    setUsers(previous => [...previous.filter(item => item.id !== user.id), user]);
+    setIsLoading(false);
+    void syncEngine.flushQueue();
+    return { success: true };
   };
 
-  const isDean = Boolean(currentUser?.role === 'dean');
+  const signUp = async (params: SignUpParams) => {
+    setIsLoading(true);
+    if (!params.password || params.password.length < 8) {
+      setIsLoading(false);
+      return { success: false, error: 'Password must be at least 8 characters.' };
+    }
+    const response = await authApi.register(params);
+    if (response.error || !response.data) {
+      setIsLoading(false);
+      return { success: false, error: response.error || 'Registration failed.' };
+    }
+    const result = response.data as { token: string; user: User };
+    setToken(result.token);
+    const user = safeUser(result.user);
+    setCurrentUser(user);
+    setUsers(previous => [...previous.filter(item => item.id !== user.id), user]);
+    setIsLoading(false);
+    return { success: true };
+  };
 
-  const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'dean';
+  const updateStudentPassword = async (newPassword: string) => {
+    if (!currentUser) return { success: false, error: 'No user is currently signed in.' };
+    if (newPassword.trim().length < 8) return { success: false, error: 'Password must be at least 8 characters.' };
+    const response = await authApi.changePassword(newPassword.trim());
+    if (response.error) return { success: false, error: response.error };
+    setCurrentUser({ ...currentUser, mustChangePassword: false });
+    return { success: true };
+  };
+
+  const sendEmailOtp = async (email: string) => {
+    if (!currentUser) return { success: false, error: 'No user is currently signed in.' };
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return { success: false, error: 'Please enter a valid email address.' };
+    }
+    const response = await authApi.sendEmailOtp(email.trim().toLowerCase());
+    if (response.error || !response.data) {
+      return { success: false, error: response.error || 'Failed to send verification code.' };
+    }
+    return {
+      success: true,
+      message: response.data.message,
+      devOtp: response.data.devOtp,
+    };
+  };
+
+  const completeStudentOnboarding = async (newPassword: string, email: string, otp: string) => {
+    if (!currentUser) return { success: false, error: 'No user is currently signed in.' };
+    if (newPassword.trim().length < 8) {
+      return { success: false, error: 'Password must be at least 8 characters long.' };
+    }
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return { success: false, error: 'Please enter a valid email address.' };
+    }
+    if (!otp.trim() || otp.trim().length !== 6) {
+      return { success: false, error: 'A 6-digit verification code is required.' };
+    }
+
+    const response = await authApi.completeStudentOnboarding({
+      newPassword: newPassword.trim(),
+      email: email.trim().toLowerCase(),
+      otp: otp.trim(),
+    });
+
+    if (response.error || !response.data) {
+      return { success: false, error: response.error || 'Failed to complete account activation.' };
+    }
+
+    const result = response.data as { token: string; user: User };
+    if (result.token) setToken(result.token);
+    const updated = safeUser(result.user);
+    setCurrentUser(updated);
+    setUsers(previous => [...previous.filter(item => item.id !== updated.id), updated]);
+    void syncEngine.flushQueue();
+    return { success: true };
+  };
+
+  const verifyCurrentPassword = async (candidatePassword: string) => {
+    if (!candidatePassword.trim()) return false;
+    const response = await authApi.verifyPassword(candidatePassword.trim());
+    return response.data?.valid === true;
+  };
+
+  const updateProfile = async (data: Partial<User>, newPassword?: string, currentPassword?: string) => {
+    if (!currentUser) return { success: false, error: 'No user is currently signed in.' };
+    if (newPassword) {
+      if (newPassword.trim().length < 8) return { success: false, error: 'Password must be at least 8 characters.' };
+      if (!currentPassword || !(await verifyCurrentPassword(currentPassword))) return { success: false, error: 'Incorrect current password.' };
+    }
+    const response = await authApi.updateProfile({ ...data, ...(newPassword ? { newPassword: newPassword.trim() } : {}) });
+    if (response.error) return { success: false, error: response.error };
+    setCurrentUser({ ...currentUser, ...safeUser({ ...currentUser, ...data }), mustChangePassword: newPassword ? false : currentUser.mustChangePassword });
+    return { success: true };
+  };
+
+  const signOut = async () => {
+    await authApi.logout();
+    clearToken();
+    clearSensitiveCache();
+    setCurrentUser(null);
+    setIsLoading(false);
+  };
+
+  // Demo impersonation is intentionally disabled in the secured build.
+  const quickLogin = (_userOrId: User | string) => {};
+  const switchUser = (_user: User) => {};
+
+  const isDean = currentUser?.role === 'dean';
+  const isTeacher = currentUser?.role === 'teacher' || isDean;
   const isStudent = currentUser?.role === 'student';
 
   return (
-    <AuthContext.Provider
-      value={{
-        currentUser,
-        users,
-        isTeacher,
-        isDean,
-        isStudent,
-        isLoading,
-        theme,
-        toggleTheme,
-        signIn,
-        signUp,
-        signOut,
-        updateStudentPassword,
-        updateProfile,
-        verifyCurrentPassword,
-        quickLogin,
-        switchUser,
-        refreshUsers,
-      }}
-    >
+    <AuthContext.Provider value={{
+      currentUser,
+      users,
+      isTeacher,
+      isDean,
+      isStudent,
+      isLoading,
+      theme,
+      toggleTheme,
+      signIn,
+      signUp,
+      signOut,
+      updateStudentPassword,
+      sendEmailOtp,
+      completeStudentOnboarding,
+      updateProfile,
+      verifyCurrentPassword,
+      quickLogin,
+      switchUser,
+      refreshUsers,
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };

@@ -4,7 +4,7 @@ import { GradingMatrixTemplate, MatrixCategory, MatrixSubCategory } from '../../
 import { NeuModal } from '../common/NeuModal';
 import { NeuButton } from '../common/NeuButton';
 import { NeuBadge } from '../common/NeuBadge';
-import { validateMatrixTotal, validateSubCategoriesTotal } from '../../utils/gradeCalculator';
+import { validateMatrixTotal, validateSubCategoriesTotal, isProjectCategory } from '../../utils/gradeCalculator';
 import {
   Globe,
   Plus,
@@ -41,6 +41,7 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
   const [templateDesc, setTemplateDesc] = useState('');
   const [categories, setCategories] = useState<MatrixCategory[]>([]);
   const [passingGrade, setPassingGrade] = useState(75);
+  const [useTransmutation, setUseTransmutation] = useState(true);
   const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
 
   // New category inputs
@@ -68,6 +69,7 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
     setTemplateDesc(tmpl.description || '');
     setCategories(JSON.parse(JSON.stringify(tmpl.matrix)));
     setPassingGrade(tmpl.passingGrade);
+    setUseTransmutation(tmpl.useTransmutation !== false);
     setIsEditing(true);
     setExpandedCatId(tmpl.matrix.find((c) => c.subCategories && c.subCategories.length > 0)?.id || null);
   };
@@ -89,6 +91,7 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
       { id: `cat-${Date.now().toString(36)}-2`, name: 'Periodic Examinations', weight: 50, color: 'rose' },
     ]);
     setPassingGrade(75);
+    setUseTransmutation(true);
     setIsEditing(true);
   };
 
@@ -138,11 +141,13 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
+    const isProject = isProjectCategory({ name: newCatName.trim() });
     const newCat: MatrixCategory = {
       id: `cat-${Date.now().toString(36)}`,
       name: newCatName.trim(),
       weight: Number(newCatWeight) || 10,
-      color: 'blue',
+      color: isProject ? 'indigo' : 'blue',
+      isTransmutable: !isProject,
     };
     setCategories((prev) => [...prev, newCat]);
     setNewCatName('');
@@ -221,6 +226,7 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
         description: templateDesc.trim(),
         passingGrade,
         matrix: categories,
+        useTransmutation,
       },
       editingTemplateId || undefined
     );
@@ -278,7 +284,7 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
         {/* Template Detail / Edit View */}
         {isEditing ? (
           <div className="space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="sm:col-span-2 space-y-1">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Template Name
@@ -307,6 +313,23 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
                   />
                   <span className="text-xs text-slate-500 font-bold">%</span>
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Transmutation
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setUseTransmutation(!useTransmutation)}
+                  className={`w-full py-2 px-3 rounded-xl border text-xs font-bold transition-all text-center ${
+                    useTransmutation
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                      : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  {useTransmutation ? '⚡ BCP Annex A' : 'Raw % (Off)'}
+                </button>
               </div>
             </div>
 
@@ -374,6 +397,29 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
                               {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                             </button>
                           )}
+                          {(() => {
+                            const isProject = isProjectCategory(cat);
+                            const transmutable = cat.isTransmutable !== undefined ? cat.isTransmutable : !isProject;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextVal = !transmutable;
+                                  setCategories((prev) =>
+                                    prev.map((c) => (c.id === cat.id ? { ...c, isTransmutable: nextVal } : c))
+                                  );
+                                }}
+                                className={`text-[10px] font-semibold px-2 py-1 rounded-md border shrink-0 transition-all ${
+                                  transmutable
+                                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100'
+                                    : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
+                                }`}
+                                title="Click to toggle between Transmutable (Annex A) and Fixed Grade"
+                              >
+                                {transmutable ? '⚡ Transmutable' : '📌 Fix Grade Only'}
+                              </button>
+                            );
+                          })()}
                         </div>
 
                         <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
@@ -544,6 +590,13 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
                     <NeuBadge variant="primary" size="sm">
                       Pass: {activeTemplate.passingGrade}%
                     </NeuBadge>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
+                      activeTemplate.useTransmutation !== false
+                        ? 'text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/60'
+                        : 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800'
+                    }`}>
+                      {activeTemplate.useTransmutation !== false ? '⚡ BCP Transmuted (Annex A)' : 'Raw %'}
+                    </span>
                     {activeTemplate.isDefault && (
                       <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100/70 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
                         Active Global Standard

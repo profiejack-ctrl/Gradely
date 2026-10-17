@@ -107,6 +107,7 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
         units: Number(units),
         passingGrade: initialPassingGrade,
         matrix: initialMatrix,
+        useTransmutation: subjectToEdit ? (subjectToEdit.useTransmutation !== false) : true,
       },
       subjectToEdit?.id
     );
