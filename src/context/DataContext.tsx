@@ -1313,6 +1313,54 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const syncResult = await syncEngine.flushQueue();
       if (!syncResult.success) {
         cloudSyncError = syncResult.error || 'Please retry when the connection is stable.';
+      } else {
+        reportProgress(96, 'Verifying imported records in the cloud');
+        const remote = await syncEngine.pullAll();
+        if (!remote) {
+          cloudSyncError = 'The upload finished, but the cloud verification request could not be completed.';
+        } else {
+          const remoteUsersById = new Map<string, any>(
+            (remote.users || []).map((user: any) => [user.id, user])
+          );
+          const remoteScoreKeys = new Set(
+            (remote.scores || []).map((score: any) => {
+              const remoteUser = remoteUsersById.get(score.studentId);
+              const studentKey = normalizeStudentNumber(remoteUser?.studentNumber) || score.studentId;
+              return `${score.assessmentId}::${studentKey}`;
+            })
+          );
+          const missingScorePayloads = scoreUpserts.filter((score) =>
+            !remoteScoreKeys.has(
+              `${score.assessment_id}::${normalizeStudentNumber(score.student_number) || score.student_id}`
+            )
+          );
+
+          const remoteAttendanceKeys = new Set(
+            (remote.attendance || []).map((record: any) => {
+              const remoteUser = remoteUsersById.get(record.studentId);
+              const studentKey = normalizeStudentNumber(remoteUser?.studentNumber) || record.studentId;
+              return `${record.subjectId}::${studentKey}::${record.date}`;
+            })
+          );
+          const missingAttendancePayloads = attendanceUpserts.filter((record) =>
+            !remoteAttendanceKeys.has(
+              `${record.subject_id}::${normalizeStudentNumber(record.student_number) || record.student_id}::${record.date}`
+            )
+          );
+
+          // Keep only rows that verification could not find. This makes the
+          // retry action safe and avoids resending already-uploaded records.
+          if (missingScorePayloads.length > 0) {
+            syncEngine.enqueueBatch('score_records', 'UPSERT', missingScorePayloads);
+          }
+          if (missingAttendancePayloads.length > 0) {
+            syncEngine.enqueueBatch('attendance_records', 'UPSERT', missingAttendancePayloads);
+          }
+
+          if (missingScorePayloads.length > 0 || missingAttendancePayloads.length > 0) {
+            cloudSyncError = `Cloud verification found ${missingScorePayloads.length} missing score record(s) and ${missingAttendancePayloads.length} missing attendance record(s). The missing rows remain pending for retry.`;
+          }
+        }
       }
     }
 
