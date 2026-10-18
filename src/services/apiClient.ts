@@ -14,6 +14,7 @@ export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3
 const TOKEN_KEY = 'gradely_api_token_v1';
 const SESSION_KEY = 'gradely_session_v1';
 const REQUEST_TIMEOUT_MS = 12000;
+const SYNC_REQUEST_TIMEOUT_MS = 60000;
 
 // --------------------------------------------------------------------------
 // Token management
@@ -58,7 +59,8 @@ async function request<T = any>(
   method: string,
   path: string,
   body?: any,
-  skipAuth = false
+  skipAuth = false,
+  timeoutMs = REQUEST_TIMEOUT_MS
 ): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -73,7 +75,7 @@ async function request<T = any>(
 
   try {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
     const res = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers,
@@ -92,7 +94,7 @@ async function request<T = any>(
 
     if (!res.ok) {
       if (res.status === 401) clearToken();
-      return { status: res.status, error: data?.error || `HTTP ${res.status}` };
+      return { status: res.status, data: data as T, error: data?.error || `HTTP ${res.status}` };
     }
 
     return { status: res.status, data: data as T };
@@ -108,7 +110,7 @@ async function request<T = any>(
 
 export const api = {
   get:    <T = any>(path: string)            => request<T>('GET',    path),
-  post:   <T = any>(path: string, body: any) => request<T>('POST',   path, body),
+  post:   <T = any>(path: string, body: any, timeoutMs = REQUEST_TIMEOUT_MS) => request<T>('POST', path, body, false, timeoutMs),
   put:    <T = any>(path: string, body: any) => request<T>('PUT',    path, body),
   patch:  <T = any>(path: string, body: any) => request<T>('PATCH',  path, body),
   delete: <T = any>(path: string, body?: any) => request<T>('DELETE', path, body),
@@ -155,7 +157,7 @@ export const dataApi = {
 
   /** Send batch mutations to backend */
   sync: (mutations: Array<{ table: string; action: 'UPSERT' | 'DELETE'; payload: any }>) =>
-    api.post('/api/data/sync', { mutations }),
+    api.post('/api/data/sync', { mutations }, SYNC_REQUEST_TIMEOUT_MS),
 
   /** Wipe cloud database (Faculty only) */
   wipe: (keepTeachersAndTemplates = false) =>
@@ -266,22 +268,13 @@ export async function flushOfflineQueue(): Promise<{ success: boolean; synced: n
       saveOfflineQueue(remaining);
       totalSynced += chunk.length;
     } else {
-      // Clear unrecoverable client errors (400, 403, 413, 422, or server validation rejection)
-      const isUnrecoverable =
-        result.status === 400 ||
-        result.status === 403 ||
-        result.status === 413 ||
-        result.status === 422 ||
-        (result.status === 200 && result.data?.success === false);
-
-      if (isUnrecoverable) {
-        console.warn(`[SyncEngine] Clearing unrecoverable mutations from queue (${result.status}):`, result.error || result.data?.errors);
-        const chunkIds = new Set(chunk.map(q => q.id));
-        const remaining = loadOfflineQueue().filter(q => !chunkIds.has(q.id));
-        saveOfflineQueue(remaining);
-      }
-      const serverError = result.error ||
+      // Keep failed mutations in the queue so the user can retry after fixing
+      // a temporary production/API problem. The explicit Discard action in the
+      // sync menu remains available when a payload truly needs to be removed.
+      console.warn(`[SyncEngine] Keeping failed mutations for retry (${result.status}):`, result.error || result.data?.errors);
+      const serverError =
         (Array.isArray(result.data?.errors) ? result.data.errors.join('; ') : '') ||
+        result.error ||
         `The API rejected the sync request (HTTP ${result.status}).`;
       return { success: false, synced: totalSynced, error: serverError };
     }

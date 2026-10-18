@@ -4,7 +4,8 @@ import { NeuModal } from '../common/NeuModal';
 import { NeuButton } from '../common/NeuButton';
 import { NeuBadge } from '../common/NeuBadge';
 import { NeuSelect, NeuInput } from '../common/NeuInput';
-import { useData } from '../../context/DataContext';
+import { ImportProgress, OfficialGradesImportSummary, useData } from '../../context/DataContext';
+import { syncEngine } from '../../services/apiSyncEngine';
 import {
   parseOfficialGradesCSV,
   generateAttendanceSessionDates,
@@ -19,8 +20,13 @@ import {
   CalendarCheck,
   UserPlus,
   Layers,
+  AlertTriangle,
+  RefreshCw,
+  CloudUpload,
+  XCircle,
 } from 'lucide-react';
 import { formatLastFirst } from '../../utils/nameUtils';
+import { formatStudentName } from '../../utils/csvParser';
 
 export const SAMPLE_OFFICIAL_PRELIM_CSV = `student_id,student_name,Class Standing_Attendance_1,Class Standing_Attendance_2,Class Standing_Attendance_3,Class Standing_Attendance_4,Class Standing_Attendance_5,Class Standing_Attendance_6,Class Standing_Attendance_7,Class Standing_Attendance_8,Class Standing_Attendance_9,Class Standing_Attendance_10,Class Standing_Written_Works_1,Class Standing_Written_Works_2,Class Standing_Written_Works_3,Class Standing_Written_Works_4,Class Standing_Written_Works_5,Class Standing_Written_Works_6,Class Standing_Written_Works_7,Class Standing_Written_Works_8,Class Standing_Written_Works_9,Class Standing_Written_Works_10,Class Standing_Task_1,Class Standing_Task_2,Class Standing_Task_3,Class Standing_Task_4,Class Standing_Task_5,Class Standing_Task_6,Class Standing_Task_7,Class Standing_Task_8,Class Standing_Task_9,Class Standing_Task_10,Project_Output_1,Project_Requirement_1,Examination_Prelim_Written_Examination,Examination_Prelim_Oral_Examination
 -,overall,1,1,1,1,1,1,1,1,1,1,0,25,0,0,0,0,0,0,0,0,100,0,100,0,0,0,0,0,0,0,100,0,50,0
@@ -118,6 +124,9 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
   const [autoEnrollMissingStudents, setAutoEnrollMissingStudents] = useState<boolean>(true);
   const [previewFilter, setPreviewFilter] = useState<string>('');
   const [isImporting, setIsImporting] = useState<boolean>(false);
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
+  const [importReport, setImportReport] = useState<OfficialGradesImportSummary | null>(null);
+  const [isRetryingCloud, setIsRetryingCloud] = useState(false);
 
   // Custom Category Mappings (colHeader -> categoryId)
   const [customMappings, setCustomMappings] = useState<Record<string, { categoryId: string; parentCategoryId?: string }>>({});
@@ -125,6 +134,8 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
   // Sync initial target section and subject
   useEffect(() => {
     if (isOpen) {
+      setImportProgress(null);
+      setImportReport(null);
       const initialSec = selectedSectionId || sections[0]?.id || '';
       setTargetSectionId(initialSec);
 
@@ -145,8 +156,21 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
   const currentSubject = subjects.find((s) => s.id === targetSubjectId) || subjects[0];
   const targetSection = sections.find((s) => s.id === targetSectionId) || sections[0];
 
+  const normalizeStudentNumber = (value?: string) =>
+    String(value || '').trim().toLowerCase().replace(/[\s-]/g, '');
+  const normalizeStudentName = (value?: string) => {
+    const clean = String(value || '').trim();
+    if (!clean) return '';
+    return formatStudentName(clean).displayName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+  };
+
   const handleReparse = (text: string, subjId: string, periodFallback: GradingPeriod) => {
     setCsvText(text);
+    setImportReport(null);
     if (!text.trim()) {
       setParsedResult(null);
       return;
@@ -222,18 +246,24 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
     const unmatched: any[] = [];
 
     parsedResult.students.forEach((row) => {
-      const cleanNum = row.studentNumber.trim();
-      const existing = allStudents.find((s) => {
-        if (cleanNum && s.studentNumber && s.studentNumber.trim() === cleanNum) return true;
-        if (formatLastFirst(s.name).toLowerCase() === row.rawName.toLowerCase()) return true;
-        if (s.name.toLowerCase() === row.displayName.toLowerCase()) return true;
-        return false;
-      });
+      const cleanNum = normalizeStudentNumber(row.studentNumber);
+      const exact = allStudents.find((s) =>
+        s.role === 'student' && cleanNum && normalizeStudentNumber(s.studentNumber) === cleanNum
+      );
+      const nameMatches = allStudents.filter((s) =>
+        s.role === 'student' && normalizeStudentName(s.name) === normalizeStudentName(row.rawName)
+      );
+      const existing = exact || (nameMatches.length === 1 ? nameMatches[0] : undefined);
 
       if (existing) {
         matched.push({ csvRow: row, student: existing });
       } else {
-        unmatched.push(row);
+        unmatched.push({
+          ...row,
+          matchReason: nameMatches.length > 1
+            ? 'Ambiguous name match; multiple students share this name.'
+            : 'No matching production student number or name.',
+        });
       }
     });
 
@@ -263,10 +293,17 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
     return parsedResult.assessments.reduce((acc, a) => acc + a.scoresCount, 0);
   }, [parsedResult]);
 
+  const attendanceSessionDates = useMemo(
+    () => parsedResult ? generateAttendanceSessionDates(parsedResult.attendanceColumns.length, attendanceStartDate) : [],
+    [parsedResult, attendanceStartDate]
+  );
+
   const handleImportNow = async () => {
     if (!parsedResult || !currentSubject || !targetSection) return;
 
     setIsImporting(true);
+    setImportReport(null);
+    setImportProgress({ percent: 1, stage: 'Starting import' });
     try {
       // 1. Prepare Assessments
       const assessmentsPayload = parsedResult.assessments.map((ass) => {
@@ -287,6 +324,7 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
       const scoresPayload: Array<{
         colHeader: string;
         studentNumber: string;
+        studentName: string;
         score: number;
       }> = [];
 
@@ -295,6 +333,7 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
           scoresPayload.push({
             colHeader,
             studentNumber: st.studentNumber,
+            studentName: st.rawName,
             score: scoreVal,
           });
         });
@@ -304,6 +343,7 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
       let attendancePayload: Array<{
         sessionIndex: number;
         studentNumber: string;
+        studentName: string;
         date: string;
         status: AttendanceStatus;
       }> | undefined;
@@ -322,6 +362,7 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
             attendancePayload!.push({
               sessionIndex: attCol.sessionNumber,
               studentNumber: st.studentNumber,
+              studentName: st.rawName,
               date: sessionDate,
               status,
             });
@@ -346,17 +387,35 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
         scores: scoresPayload,
         attendance: attendancePayload,
         studentsToEnroll,
+        studentRows: parsedResult.students.map((student) => ({
+          studentNumber: student.studentNumber,
+          name: student.rawName,
+        })),
+        autoEnrollMissingStudents,
+        warnings: parsedResult.warnings,
+        onProgress: setImportProgress,
       });
 
-      onShowToast(
-        'Grades Imported Successfully',
-        `Imported ${summary.scoresCount} scores across ${summary.assessmentsCount} assessments for ${currentSubject.code}. ${
-          summary.attendanceCount > 0 ? `Plus ${summary.attendanceCount} attendance logs.` : ''
-        }`,
-        'success'
-      );
-
-      onClose();
+      setImportReport(summary);
+      if (summary.cloudSyncError) {
+        onShowToast(
+          'Imported Locally; Cloud Retry Needed',
+          `${summary.scoresCount}/${summary.scoresExpected} scores and ${summary.attendanceCount}/${summary.attendanceExpected} attendance records saved locally. ${summary.cloudSyncError}`,
+          'warning'
+        );
+      } else if (summary.warnings.length > 0) {
+        onShowToast(
+          'Import Completed with Warnings',
+          `${summary.scoresCount}/${summary.scoresExpected} scores imported. ${summary.warnings.join(' ')}`,
+          'warning'
+        );
+      } else {
+        onShowToast(
+          'Grades Imported Successfully',
+          `Imported ${summary.scoresCount} scores across ${summary.assessmentsCount} assessments and ${summary.attendanceCount} attendance logs for ${currentSubject.code}.`,
+          'success'
+        );
+      }
     } catch (err: any) {
       console.error('Grade import error:', err);
       onShowToast('Import Failed', err.message || 'An error occurred during grade import.', 'error');
@@ -364,6 +423,23 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
       setIsImporting(false);
     }
   };
+
+  const handleRetryCloudSync = async () => {
+    if (syncEngine.getQueue().length === 0) return;
+    setIsRetryingCloud(true);
+    const result = await syncEngine.flushQueue();
+    setIsRetryingCloud(false);
+    if (result.success) {
+      setImportReport((previous) => previous ? { ...previous, cloudSyncError: undefined } : previous);
+      onShowToast('Cloud Upload Retried', 'All pending import records were uploaded successfully.', 'success');
+    } else {
+      onShowToast('Cloud Retry Failed', result.error || 'The pending records are still waiting for a stable connection.', 'error');
+    }
+  };
+
+  const totalSkipped = importReport
+    ? importReport.studentsSkipped + importReport.skippedScores.length + importReport.skippedAttendance.length
+    : 0;
 
   return (
     <NeuModal
@@ -652,6 +728,11 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
                       value={attendanceStartDate}
                       onChange={(e) => setAttendanceStartDate(e.target.value)}
                     />
+                    {attendanceSessionDates.length > 0 && (
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                        Creates records from <strong>{attendanceSessionDates[0]}</strong> through <strong>{attendanceSessionDates[attendanceSessionDates.length - 1]}</strong> on generated class days.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -760,21 +841,125 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
           </div>
         )}
 
+        {(isImporting || importProgress || importReport) && (
+          <div className="p-4 rounded-2xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/60 dark:bg-indigo-950/30 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                {isImporting ? (
+                  <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin" />
+                ) : importReport?.cloudSyncError ? (
+                  <CloudUpload className="w-4 h-4 text-amber-600" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                )}
+                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                  {importProgress?.stage || 'Import report'}
+                </span>
+              </div>
+              <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                {importProgress?.percent ?? 100}%
+              </span>
+            </div>
+
+            <div className="h-2.5 rounded-full bg-white dark:bg-slate-900 overflow-hidden border border-indigo-100 dark:border-indigo-900">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${importReport?.cloudSyncError ? 'bg-amber-500' : 'bg-indigo-600'} ${isImporting ? 'animate-pulse' : ''}`}
+                style={{ width: `${Math.max(1, importProgress?.percent ?? 100)}%` }}
+              />
+            </div>
+
+            {importReport && !isImporting && (
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <div className="rounded-xl bg-white/80 dark:bg-slate-900/70 p-2.5">
+                    <div className="text-[10px] uppercase font-bold text-slate-500">Students</div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">{importReport.studentsDetected}</div>
+                    <div className="text-[10px] text-slate-500">{importReport.studentsEnrolled} enrolled</div>
+                  </div>
+                  <div className="rounded-xl bg-white/80 dark:bg-slate-900/70 p-2.5">
+                    <div className="text-[10px] uppercase font-bold text-slate-500">Assessments</div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">{importReport.assessmentsCount}</div>
+                  </div>
+                  <div className="rounded-xl bg-white/80 dark:bg-slate-900/70 p-2.5">
+                    <div className="text-[10px] uppercase font-bold text-slate-500">Scores</div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">{importReport.scoresCount}/{importReport.scoresExpected}</div>
+                  </div>
+                  <div className="rounded-xl bg-white/80 dark:bg-slate-900/70 p-2.5">
+                    <div className="text-[10px] uppercase font-bold text-slate-500">Attendance</div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">{importReport.attendanceCount}/{importReport.attendanceExpected}</div>
+                  </div>
+                  <div className="rounded-xl bg-white/80 dark:bg-slate-900/70 p-2.5">
+                    <div className="text-[10px] uppercase font-bold text-slate-500">Skipped</div>
+                    <div className={`text-sm font-bold ${totalSkipped > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{totalSkipped}</div>
+                  </div>
+                </div>
+
+                {importReport.cloudSyncError && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-3">
+                    <div className="flex items-start gap-2 text-xs text-amber-800 dark:text-amber-200">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>Saved locally, but cloud upload is pending: {importReport.cloudSyncError}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRetryCloudSync}
+                      disabled={isRetryingCloud}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 disabled:opacity-60"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRetryingCloud ? 'animate-spin' : ''}`} />
+                      Retry Cloud Upload
+                    </button>
+                  </div>
+                )}
+
+                {totalSkipped > 0 && (
+                  <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-white/70 dark:bg-slate-900/60 p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-300">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Records needing attention
+                    </div>
+                    <div className="max-h-28 overflow-auto space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
+                      {[...importReport.skippedStudents, ...importReport.skippedScores, ...importReport.skippedAttendance]
+                        .slice(0, 10)
+                        .map((issue, index) => (
+                          <div key={`${issue.studentNumber || 'row'}-${issue.column || issue.date || index}`} className="flex gap-2">
+                            <XCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                            <span>
+                              <strong>{issue.studentName || issue.studentNumber || 'Row'}</strong>
+                              {issue.column ? ` · ${issue.column}` : ''}
+                              {issue.date ? ` · ${issue.date}` : ''}
+                              {` — ${issue.reason}`}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                    {totalSkipped > 10 && (
+                      <div className="text-[10px] text-slate-500">Showing the first 10 issues. The counts above include all skipped records.</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Modal Footer Actions */}
         <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
-          <NeuButton variant="secondary" onClick={onClose}>
-            Cancel
+          <NeuButton variant="secondary" onClick={onClose} disabled={isImporting}>
+            {importReport ? 'Done' : 'Cancel'}
           </NeuButton>
 
-          <NeuButton
-            variant="primary"
-            disabled={!parsedResult || parsedResult.students.length === 0 || isImporting}
-            isLoading={isImporting}
-            onClick={handleImportNow}
-            leftIcon={<CheckCircle2 className="w-4 h-4 text-white" />}
-          >
-            Import {totalScoresCount} Official Grades
-          </NeuButton>
+          {!importReport && (
+            <NeuButton
+              variant="primary"
+              disabled={!parsedResult || parsedResult.students.length === 0 || isImporting}
+              isLoading={isImporting}
+              onClick={handleImportNow}
+              leftIcon={<CheckCircle2 className="w-4 h-4 text-white" />}
+            >
+              Import {totalScoresCount} Official Grades
+            </NeuButton>
+          )}
         </div>
       </div>
     </NeuModal>

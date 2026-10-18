@@ -338,8 +338,11 @@ export function parseOfficialGradesCSV(
     // If maxScore is > 0, or if overall row is absent, scan student rows to find scores
     if (maxScore > 0) {
       assessmentCandidates.push({ colIdx: c, colHeader: header, maxScore });
-    } else if (!overallRow) {
-      // Find highest score in student rows
+    } else {
+      // Some official exports write 0/blank in the summary row even though
+      // students have values in the assessment column. Keep those columns by
+      // deriving a fallback maximum from the student rows instead of silently
+      // dropping the entire assessment.
       let highest = 0;
       let hasData = false;
       for (let r = dataStartIndex; r < rows.length; r++) {
@@ -355,6 +358,9 @@ export function parseOfficialGradesCSV(
           colHeader: header,
           maxScore: highest > 0 ? highest : 100,
         });
+        if (overallRow) {
+          warnings.push(`Assessment "${header}" had no max score in the summary row; max score was inferred from student values.`);
+        }
       }
     }
   }

@@ -35,6 +35,36 @@ import {
 } from '../utils/enrollmentUtils';
 import { formatStudentName } from '../utils/csvParser';
 
+export interface ImportIssue {
+  studentNumber?: string;
+  studentName?: string;
+  column?: string;
+  date?: string;
+  reason: string;
+}
+
+export interface ImportProgress {
+  percent: number;
+  stage: string;
+}
+
+export interface OfficialGradesImportSummary {
+  studentsDetected: number;
+  studentsMatched: number;
+  studentsEnrolled: number;
+  studentsSkipped: number;
+  assessmentsCount: number;
+  scoresExpected: number;
+  scoresCount: number;
+  attendanceExpected: number;
+  attendanceCount: number;
+  skippedStudents: ImportIssue[];
+  skippedScores: ImportIssue[];
+  skippedAttendance: ImportIssue[];
+  warnings: string[];
+  cloudSyncError?: string;
+}
+
 interface DataContextType {
   sections: Section[];
   subjects: Subject[];
@@ -93,12 +123,14 @@ interface DataContextType {
     scores: Array<{
       colHeader: string;
       studentNumber: string;
+      studentName?: string;
       score: number;
       remarks?: string;
     }>;
     attendance?: Array<{
       sessionIndex: number;
       studentNumber: string;
+      studentName?: string;
       date: string;
       status: AttendanceStatus;
     }>;
@@ -106,12 +138,14 @@ interface DataContextType {
       studentNumber: string;
       name: string;
     }>;
-  }) => Promise<{
-    studentsEnrolled: number;
-    assessmentsCount: number;
-    scoresCount: number;
-    attendanceCount: number;
-  }>;
+    studentRows?: Array<{
+      studentNumber: string;
+      name: string;
+    }>;
+    autoEnrollMissingStudents?: boolean;
+    warnings?: string[];
+    onProgress?: (progress: ImportProgress) => void;
+  }) => Promise<OfficialGradesImportSummary>;
 
   // Attendance
   setAttendance: (
@@ -830,12 +864,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     scores: Array<{
       colHeader: string;
       studentNumber: string;
+      studentName?: string;
       score: number;
       remarks?: string;
     }>;
     attendance?: Array<{
       sessionIndex: number;
       studentNumber: string;
+      studentName?: string;
       date: string;
       status: AttendanceStatus;
     }>;
@@ -843,6 +879,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       studentNumber: string;
       name: string;
     }>;
+    studentRows?: Array<{
+      studentNumber: string;
+      name: string;
+    }>;
+    autoEnrollMissingStudents?: boolean;
+    warnings?: string[];
+    onProgress?: (progress: ImportProgress) => void;
   }) => {
     const {
       subjectId,
@@ -852,7 +895,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       scores: importScores,
       attendance: importAtt,
       studentsToEnroll = [],
+      studentRows = [],
+      autoEnrollMissingStudents = true,
+      warnings: importWarnings = [],
+      onProgress,
     } = payload;
+
+    const reportProgress = (percent: number, stage: string) => {
+      onProgress?.({ percent, stage });
+    };
+    const normalizeStudentNumber = (value?: string) =>
+      String(value || '').trim().toLowerCase().replace(/[\s-]/g, '');
+    const normalizeStudentName = (value?: string) => {
+      const clean = String(value || '').trim();
+      if (!clean) return '';
+      const displayName = formatStudentName(clean).displayName;
+      return displayName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+    };
+
+    reportProgress(3, 'Preparing section and subject');
 
     // 0. Ensure parent section and subject exist in cloud sync queue before child records
     const targetSection = sections.find((s) => s.id === sectionId);
@@ -886,89 +951,125 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }
 
-    // 1. Process Students: Enroll any new or existing students into this section
+    // 1. Process Students: resolve by number first, then by a unique name match.
+    // The resolved map is also used by scores and attendance, so a name-only
+    // match cannot silently lose the child records when IDs differ in production.
+    reportProgress(12, 'Resolving students and enrollment');
     const updatedUsers = [...allUsers];
     const userUpserts: any[] = [];
     const studentNumberToUserMap: Map<string, User> = new Map();
+    const studentNameToUserMap: Map<string, User> = new Map();
+    const skippedStudents: ImportIssue[] = [];
+    const resolvedRows = studentRows.length > 0
+      ? studentRows
+      : studentsToEnroll.map((student) => ({ studentNumber: student.studentNumber, name: student.name }));
+    const existingByNumber = new Map<string, User>();
+    const existingByName = new Map<string, User[]>();
+    let studentsMatched = 0;
+    let studentsEnrolled = 0;
 
-    // Index existing students
     updatedUsers.forEach((u) => {
-      if (u.studentNumber) {
-        studentNumberToUserMap.set(u.studentNumber.trim(), u);
-      }
+      if (u.role !== 'student') return;
+      const numberKey = normalizeStudentNumber(u.studentNumber);
+      if (numberKey) existingByNumber.set(numberKey, u);
+      const nameKey = normalizeStudentName(u.name);
+      if (nameKey) existingByName.set(nameKey, [...(existingByName.get(nameKey) || []), u]);
     });
 
-    if (studentsToEnroll.length > 0) {
-      studentsToEnroll.forEach((st, idx) => {
-        const cleanNumber = (st.studentNumber || '').trim();
-        const existingStudent = cleanNumber ? studentNumberToUserMap.get(cleanNumber) : undefined;
-
-        if (existingStudent) {
-          const secIds = getStudentSectionIds(existingStudent);
-          if (!secIds.includes(sectionId)) {
-            const combinedSecIds = [...secIds, sectionId];
-            const updated: User = {
-              ...existingStudent,
-              sectionId: existingStudent.sectionId || sectionId,
-              sectionIds: combinedSecIds,
-            };
-            const userIdx = updatedUsers.findIndex((u) => u.id === existingStudent.id);
-            if (userIdx >= 0) updatedUsers[userIdx] = updated;
-            studentNumberToUserMap.set(cleanNumber, updated);
-            userUpserts.push({
-              id: updated.id,
-              name: updated.name,
-              email: updated.email,
-              role: updated.role,
-              student_number: updated.studentNumber || null,
-              section_id: formatSectionIds(combinedSecIds),
-              avatar: updated.avatar || null,
-              department: updated.department || null,
-              title: updated.title || null,
-            });
-          }
-        } else {
-          const { displayName, emailHandle } = formatStudentName(st.name || `Student ${cleanNumber}`);
-          const cleanIdSuffix = cleanNumber.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const email = `${emailHandle}${cleanIdSuffix ? `.${cleanIdSuffix}` : `.${idx + 1}`}@student.gradely.edu`;
-          const newStudent: User = {
-            id: `stud-${Date.now().toString(36)}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
-            name: displayName,
-            email,
-            role: 'student',
-            studentNumber: cleanNumber,
-            sectionId,
-            sectionIds: [sectionId],
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`,
-          };
-          updatedUsers.push(newStudent);
-          if (cleanNumber) studentNumberToUserMap.set(cleanNumber, newStudent);
-          userUpserts.push({
-            id: newStudent.id,
-            name: newStudent.name,
-            email: newStudent.email,
-            role: newStudent.role,
-            student_number: newStudent.studentNumber || null,
-            section_id: sectionId,
-            avatar: newStudent.avatar || null,
-            department: null,
-            title: null,
-          });
-        }
+    const queuedUserIds = new Set<string>();
+    const addUserUpsert = (user: User, sectionIds: string[]) => {
+      if (queuedUserIds.has(user.id)) return;
+      queuedUserIds.add(user.id);
+      userUpserts.push({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        student_number: user.studentNumber || null,
+        section_id: formatSectionIds(sectionIds),
+        avatar: user.avatar || null,
+        department: user.department || null,
+        title: user.title || null,
       });
+    };
 
-      setAllUsers(updatedUsers);
-      if (userUpserts.length > 0) {
-        syncEngine.enqueueBatch('users', 'UPSERT', userUpserts);
+    resolvedRows.forEach((row, idx) => {
+      const numberKey = normalizeStudentNumber(row.studentNumber);
+      const nameKey = normalizeStudentName(row.name);
+      const exact = numberKey ? existingByNumber.get(numberKey) : undefined;
+      const nameCandidates = nameKey ? (existingByName.get(nameKey) || []) : [];
+      const existingStudent = exact || (nameCandidates.length === 1 ? nameCandidates[0] : undefined);
+
+      if (!existingStudent && nameCandidates.length > 1) {
+        skippedStudents.push({
+          studentNumber: row.studentNumber,
+          studentName: row.name,
+          reason: 'Ambiguous name match; multiple production students have this name.',
+        });
+        return;
       }
+
+      let resolvedStudent = existingStudent;
+      if (existingStudent) studentsMatched++;
+      if (!resolvedStudent && autoEnrollMissingStudents) {
+        const { displayName, emailHandle } = formatStudentName(row.name || `Student ${row.studentNumber}`);
+        const cleanIdSuffix = numberKey.replace(/[^a-z0-9]/g, '');
+        const email = `${emailHandle}${cleanIdSuffix ? `.${cleanIdSuffix}` : `.${idx + 1}`}@student.gradely.edu`;
+        resolvedStudent = {
+          id: `stud-${Date.now().toString(36)}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+          name: displayName,
+          email,
+          role: 'student',
+          studentNumber: String(row.studentNumber || '').trim(),
+          sectionId,
+          sectionIds: [sectionId],
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`,
+        };
+        studentsEnrolled++;
+        updatedUsers.push(resolvedStudent);
+        existingByNumber.set(numberKey, resolvedStudent);
+        if (nameKey) existingByName.set(nameKey, [resolvedStudent]);
+        addUserUpsert(resolvedStudent, [sectionId]);
+      }
+
+      if (!resolvedStudent) {
+        skippedStudents.push({
+          studentNumber: row.studentNumber,
+          studentName: row.name,
+          reason: 'Student was not found in production and auto-enrollment was disabled.',
+        });
+        return;
+      }
+
+      const sectionIds = getStudentSectionIds(resolvedStudent);
+      if (!sectionIds.includes(sectionId)) {
+        const updated: User = {
+          ...resolvedStudent,
+          sectionId: resolvedStudent.sectionId || sectionId,
+          sectionIds: [...sectionIds, sectionId],
+        };
+        const userIdx = updatedUsers.findIndex((u) => u.id === resolvedStudent!.id);
+        if (userIdx >= 0) updatedUsers[userIdx] = updated;
+        resolvedStudent = updated;
+        addUserUpsert(updated, updated.sectionIds || [sectionId]);
+      }
+
+      if (numberKey) studentNumberToUserMap.set(numberKey, resolvedStudent);
+      if (nameKey) studentNameToUserMap.set(nameKey, resolvedStudent);
+    });
+
+    setAllUsers(updatedUsers);
+    if (userUpserts.length > 0) {
+      syncEngine.enqueueBatch('users', 'UPSERT', userUpserts);
     }
 
     // 2. Process Assessments: Create or update target assessments in this subject & period
+    reportProgress(30, 'Creating assessment columns');
     const updatedAssessments = [...assessments];
     const assessmentUpserts: any[] = [];
     const colToAssessmentMap: Record<string, Assessment> = {};
 
-    importAssessments.forEach((ass) => {
+    importAssessments.forEach((ass, assessmentIndex) => {
       // 1. Tag match via colHeader
       let existing = updatedAssessments.find(
         (a) =>
@@ -1054,6 +1155,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           description: newAss.description,
         });
       }
+
+      if (assessmentIndex % 5 === 0 || assessmentIndex === importAssessments.length - 1) {
+        const assessmentProgress = importAssessments.length > 0
+          ? 30 + Math.round(((assessmentIndex + 1) / importAssessments.length) * 15)
+          : 45;
+        reportProgress(assessmentProgress, `Creating assessment columns (${assessmentIndex + 1}/${importAssessments.length})`);
+      }
     });
 
     setAssessments(updatedAssessments);
@@ -1062,17 +1170,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // 3. Process Scores
+    reportProgress(48, 'Importing assessment scores');
     const updatedScores = [...scores];
     const scoreUpserts: any[] = [];
+    const skippedScores: ImportIssue[] = [];
     const scoreIndexByKey = new Map<string, number>();
     updatedScores.forEach((score, index) => {
       scoreIndexByKey.set(`${score.assessmentId}::${score.studentId}`, index);
     });
 
-    importScores.forEach((sc) => {
+    importScores.forEach((sc, scoreIndex) => {
       const targetAss = colToAssessmentMap[sc.colHeader];
-      const student = studentNumberToUserMap.get((sc.studentNumber || '').trim());
-      if (!targetAss || !student) return;
+      const student = studentNumberToUserMap.get(normalizeStudentNumber(sc.studentNumber)) ||
+        studentNameToUserMap.get(normalizeStudentName(sc.studentName));
+      if (!targetAss) {
+        skippedScores.push({ studentNumber: sc.studentNumber, column: sc.colHeader, reason: 'Assessment column could not be mapped.' });
+        return;
+      }
+      if (!student) {
+        skippedScores.push({ studentNumber: sc.studentNumber, column: sc.colHeader, reason: 'Student could not be resolved in the production roster.' });
+        return;
+      }
 
       const scoreKey = `${targetAss.id}::${student.id}`;
       const existingIdx = scoreIndexByKey.get(scoreKey) ?? -1;
@@ -1103,6 +1221,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         score: sc.score,
         remarks: sc.remarks,
       });
+
+      if (scoreIndex % 100 === 0 || scoreIndex === importScores.length - 1) {
+        const scoreProgress = importScores.length > 0
+          ? 48 + Math.round(((scoreIndex + 1) / importScores.length) * 22)
+          : 70;
+        reportProgress(scoreProgress, `Importing assessment scores (${scoreIndex + 1}/${importScores.length})`);
+      }
     });
 
     setScores(updatedScores);
@@ -1111,17 +1236,23 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // 4. Process Attendance (if provided)
+    reportProgress(72, 'Importing attendance sessions');
     const updatedAttendance = [...attendance];
     const attendanceUpserts: any[] = [];
+    const skippedAttendance: ImportIssue[] = [];
     const attendanceIndexByKey = new Map<string, number>();
     updatedAttendance.forEach((record, index) => {
       attendanceIndexByKey.set(`${record.subjectId}::${record.studentId}::${record.date}`, index);
     });
 
     if (importAtt && importAtt.length > 0) {
-      importAtt.forEach((att) => {
-        const student = studentNumberToUserMap.get((att.studentNumber || '').trim());
-        if (!student) return;
+      importAtt.forEach((att, attendanceIndex) => {
+        const student = studentNumberToUserMap.get(normalizeStudentNumber(att.studentNumber)) ||
+          studentNameToUserMap.get(normalizeStudentName(att.studentName));
+        if (!student) {
+          skippedAttendance.push({ studentNumber: att.studentNumber, date: att.date, reason: 'Student could not be resolved in the production roster.' });
+          return;
+        }
 
         const attendanceKey = `${subjectId}::${student.id}::${att.date}`;
         const existingIdx = attendanceIndexByKey.get(attendanceKey) ?? -1;
@@ -1156,6 +1287,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           period,
           note: attRecord.note,
         });
+
+        if (attendanceIndex % 100 === 0 || attendanceIndex === importAtt.length - 1) {
+          const attendanceProgress = importAtt.length > 0
+            ? 72 + Math.round(((attendanceIndex + 1) / importAtt.length) * 16)
+            : 88;
+          reportProgress(attendanceProgress, `Importing attendance (${attendanceIndex + 1}/${importAtt.length})`);
+        }
       });
 
       setAttendanceRecords(updatedAttendance);
@@ -1164,26 +1302,42 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
+    reportProgress(90, 'Uploading imported data to the cloud');
+
     // Enqueueing is intentionally synchronous for the local UI, but imports
     // must wait for the actual cloud flush before reporting success. Offline
     // mode still keeps the queued mutations locally for later retry.
     const syncState = syncEngine.getStatus();
+    let cloudSyncError: string | undefined;
     if (syncState.isConfigured && (typeof navigator === 'undefined' || navigator.onLine)) {
       const syncResult = await syncEngine.flushQueue();
       if (!syncResult.success) {
-        throw new Error(
-          `The grade data was saved locally, but the cloud upload failed: ${
-            syncResult.error || 'Please retry when the connection is stable.'
-          }`
-        );
+        cloudSyncError = syncResult.error || 'Please retry when the connection is stable.';
       }
     }
 
+    reportProgress(100, cloudSyncError ? 'Saved locally; cloud upload needs a retry' : 'Import complete');
+
     return {
-      studentsEnrolled: studentsToEnroll.length,
+      studentsDetected: resolvedRows.length,
+      studentsMatched,
+      studentsEnrolled,
+      studentsSkipped: skippedStudents.length,
       assessmentsCount: importAssessments.length,
+      scoresExpected: importScores.length,
       scoresCount: scoreUpserts.length,
+      attendanceExpected: importAtt?.length || 0,
       attendanceCount: attendanceUpserts.length,
+      skippedStudents,
+      skippedScores,
+      skippedAttendance,
+      warnings: [
+        ...importWarnings,
+        ...(skippedStudents.length > 0 ? [`${skippedStudents.length} student row(s) were not resolved.`] : []),
+        ...(skippedScores.length > 0 ? [`${skippedScores.length} score row(s) were skipped.`] : []),
+        ...(skippedAttendance.length > 0 ? [`${skippedAttendance.length} attendance row(s) were skipped.`] : []),
+      ],
+      cloudSyncError,
     };
   };
 

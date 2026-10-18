@@ -74,6 +74,19 @@ export const SyncStatusPill: React.FC = () => {
     setFeedbackMsg('Failed pending uploads discarded.');
   };
 
+  const handleRetryPending = async () => {
+    if (queueLength === 0) return;
+    setIsSyncing(true);
+    setFeedbackMsg('Retrying all pending uploads...');
+    const result = await syncEngine.flushQueue();
+    setIsSyncing(false);
+    if (result.success) {
+      setFeedbackMsg('All pending uploads completed.');
+    } else {
+      setFeedbackMsg(result.error || 'Some uploads are still pending.');
+    }
+  };
+
   return (
     <div className="relative" ref={menuRef}>
       {/* Status Pill Button */}
@@ -117,6 +130,17 @@ export const SyncStatusPill: React.FC = () => {
           </div>
 
           <div className="space-y-1">
+            {queueLength > 0 && (
+              <button
+                onClick={handleRetryPending}
+                disabled={isSyncing}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100 disabled:opacity-50 font-bold transition-colors text-left"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>Retry Pending Uploads ({queueLength})</span>
+              </button>
+            )}
+
             <button
               onClick={handleClearPending}
               disabled={queueLength === 0}
