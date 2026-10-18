@@ -284,6 +284,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const lastPullRef = useRef<number>(0);
   const isPullingRef = useRef<boolean>(false);
+  const sectionsRef = useRef<Section[]>(sections);
+  sectionsRef.current = sections;
+  const subjectsRef = useRef<Subject[]>(subjects);
+  subjectsRef.current = subjects;
 
   // Pull authoritative remote data directly from Supabase cloud
   const pullFromCloud = useCallback(async (force = false) => {
@@ -299,6 +303,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const remote = await syncEngine.pullAll();
       if (!remote) return;
+
+      // If remote database is completely empty (0 sections & 0 subjects) but we have local data,
+      // do not wipe local data. Instead, seed the cloud with local state.
+      const isCloudEmpty = (!remote.sections || remote.sections.length === 0) &&
+                           (!remote.subjects || remote.subjects.length === 0);
+      if (isCloudEmpty && sectionsRef.current.length > 0) {
+        console.info('[DataContext] Cloud database is unseeded. Pushing local snapshot to cloud...');
+        void pushAllToCloud();
+        return;
+      }
 
       if (remote.users) {
         setAllUsers(remote.users);
@@ -839,6 +853,38 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       attendance: importAtt,
       studentsToEnroll = [],
     } = payload;
+
+    // 0. Ensure parent section and subject exist in cloud sync queue before child records
+    const targetSection = sections.find((s) => s.id === sectionId);
+    if (targetSection) {
+      syncEngine.enqueue('sections', 'UPSERT', {
+        id: targetSection.id,
+        name: targetSection.name,
+        grade_level_or_year: targetSection.gradeLevelOrYear,
+        academic_year: targetSection.academicYear,
+        semester: targetSection.semester,
+        room: targetSection.room || null,
+        description: encodeSectionDescription(targetSection.description, targetSection.adviserId) || null,
+      });
+    }
+
+    const targetSubject = subjects.find((s) => s.id === subjectId);
+    if (targetSubject) {
+      syncEngine.enqueue('subjects', 'UPSERT', {
+        id: targetSubject.id,
+        section_id: targetSubject.sectionId,
+        teacher_id: targetSubject.teacherId,
+        name: targetSubject.name,
+        code: targetSubject.code,
+        schedule: targetSubject.schedule || null,
+        units: targetSubject.units || 3,
+        passing_grade: targetSubject.passingGrade ?? 75,
+        matrix: {
+          categories: targetSubject.matrix || [],
+          useTransmutation: targetSubject.useTransmutation !== false,
+        },
+      });
+    }
 
     // 1. Process Students: Enroll any new or existing students into this section
     const updatedUsers = [...allUsers];
