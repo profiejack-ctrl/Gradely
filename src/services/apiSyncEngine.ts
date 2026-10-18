@@ -29,6 +29,7 @@ class ApiSyncEngine {
   private status: SyncStatus;
   private listeners: Set<StatusListener> = new Set();
   private isFlushing = false;
+  private flushPromise: Promise<{ success: boolean; syncedCount: number }> | null = null;
 
   constructor() {
     this.isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -117,6 +118,20 @@ class ApiSyncEngine {
   // -------------------------------------------------------------------------
 
   async flushQueue(): Promise<{ success: boolean; syncedCount: number }> {
+    // Multiple enqueueBatch calls can happen during one import. Share the
+    // in-flight promise so callers can await the real upload instead of
+    // receiving a false-positive while another flush is still running.
+    if (this.flushPromise) return this.flushPromise;
+
+    this.flushPromise = this.performFlushQueue();
+    try {
+      return await this.flushPromise;
+    } finally {
+      this.flushPromise = null;
+    }
+  }
+
+  private async performFlushQueue(): Promise<{ success: boolean; syncedCount: number }> {
     if (this.isFlushing) return { success: true, syncedCount: 0 };
     if (!hasSession() || !getToken()) {
       return { success: false, syncedCount: 0 };

@@ -106,12 +106,12 @@ interface DataContextType {
       studentNumber: string;
       name: string;
     }>;
-  }) => {
+  }) => Promise<{
     studentsEnrolled: number;
     assessmentsCount: number;
     scoresCount: number;
     attendanceCount: number;
-  };
+  }>;
 
   // Attendance
   setAttendance: (
@@ -802,7 +802,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const importOfficialGrades = (payload: {
+  const importOfficialGrades = async (payload: {
     subjectId: string;
     sectionId: string;
     period: GradingPeriod;
@@ -1018,15 +1018,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 3. Process Scores
     const updatedScores = [...scores];
     const scoreUpserts: any[] = [];
+    const scoreIndexByKey = new Map<string, number>();
+    updatedScores.forEach((score, index) => {
+      scoreIndexByKey.set(`${score.assessmentId}::${score.studentId}`, index);
+    });
 
     importScores.forEach((sc) => {
       const targetAss = colToAssessmentMap[sc.colHeader];
       const student = studentNumberToUserMap.get((sc.studentNumber || '').trim());
       if (!targetAss || !student) return;
 
-      const existingIdx = updatedScores.findIndex(
-        (s) => s.assessmentId === targetAss.id && s.studentId === student.id
-      );
+      const scoreKey = `${targetAss.id}::${student.id}`;
+      const existingIdx = scoreIndexByKey.get(scoreKey) ?? -1;
       const recId = existingIdx >= 0
         ? updatedScores[existingIdx].id
         : `sc-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`;
@@ -1042,6 +1045,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (existingIdx >= 0) {
         updatedScores[existingIdx] = scoreRecord;
       } else {
+        scoreIndexByKey.set(scoreKey, updatedScores.length);
         updatedScores.push(scoreRecord);
       }
 
@@ -1062,15 +1066,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 4. Process Attendance (if provided)
     const updatedAttendance = [...attendance];
     const attendanceUpserts: any[] = [];
+    const attendanceIndexByKey = new Map<string, number>();
+    updatedAttendance.forEach((record, index) => {
+      attendanceIndexByKey.set(`${record.subjectId}::${record.studentId}::${record.date}`, index);
+    });
 
     if (importAtt && importAtt.length > 0) {
       importAtt.forEach((att) => {
         const student = studentNumberToUserMap.get((att.studentNumber || '').trim());
         if (!student) return;
 
-        const existingIdx = updatedAttendance.findIndex(
-          (a) => a.subjectId === subjectId && a.studentId === student.id && a.date === att.date
-        );
+        const attendanceKey = `${subjectId}::${student.id}::${att.date}`;
+        const existingIdx = attendanceIndexByKey.get(attendanceKey) ?? -1;
         const recId = existingIdx >= 0
           ? updatedAttendance[existingIdx].id
           : `att-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`;
@@ -1088,6 +1095,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (existingIdx >= 0) {
           updatedAttendance[existingIdx] = attRecord;
         } else {
+          attendanceIndexByKey.set(attendanceKey, updatedAttendance.length);
           updatedAttendance.push(attRecord);
         }
 
@@ -1105,6 +1113,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAttendanceRecords(updatedAttendance);
       if (attendanceUpserts.length > 0) {
         syncEngine.enqueueBatch('attendance_records', 'UPSERT', attendanceUpserts);
+      }
+    }
+
+    // Enqueueing is intentionally synchronous for the local UI, but imports
+    // must wait for the actual cloud flush before reporting success. Offline
+    // mode still keeps the queued mutations locally for later retry.
+    const syncState = syncEngine.getStatus();
+    if (syncState.isConfigured && (typeof navigator === 'undefined' || navigator.onLine)) {
+      const syncResult = await syncEngine.flushQueue();
+      if (!syncResult.success) {
+        throw new Error('The grade data was saved locally, but the cloud upload did not finish. Please retry when the connection is stable.');
       }
     }
 

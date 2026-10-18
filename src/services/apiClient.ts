@@ -238,7 +238,9 @@ export function clearOfflineQueue(): void {
 
 /** Flush all queued offline mutations to the backend in fast, chunked batches */
 export async function flushOfflineQueue(): Promise<{ success: boolean; synced: number }> {
-  const BATCH_SIZE = 100; // Small, resilient batches to avoid payload limits & timeouts
+  // Keep requests comfortably below the backend's 2,000-mutation ceiling while
+  // avoiding hundreds of round trips for a normal grade sheet import.
+  const BATCH_SIZE = 500;
   let totalSynced = 0;
 
   while (true) {

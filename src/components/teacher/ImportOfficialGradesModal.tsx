@@ -338,7 +338,7 @@ export const ImportOfficialGradesModal: React.FC<ImportOfficialGradesModalProps>
         : [];
 
       // 5. Execute import
-      const summary = importOfficialGrades({
+      const summary = await importOfficialGrades({
         subjectId: currentSubject.id,
         sectionId: targetSection.id,
         period: selectedPeriod,
