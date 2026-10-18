@@ -77,6 +77,7 @@ interface DataContextType {
 
   // Scores
   setScore: (assessmentId: string, studentId: string, score: number, remarks?: string) => void;
+  deleteScore: (assessmentId: string, studentId: string) => void;
   batchUpdateScores: (updates: { assessmentId: string; studentId: string; score: number; remarks?: string }[]) => void;
   importOfficialGrades: (payload: {
     subjectId: string;
@@ -708,6 +709,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       return updated;
+    });
+  };
+
+  const deleteScore = (assessmentId: string, studentId: string) => {
+    setScores((prev) => {
+      const existing = prev.find(
+        (s) => s.assessmentId === assessmentId && s.studentId === studentId
+      );
+      if (!existing) return prev;
+      syncEngine.enqueue('score_records', 'DELETE', { id: existing.id });
+      return prev.filter(
+        (s) => !(s.assessmentId === assessmentId && s.studentId === studentId)
+      );
     });
   };
 
@@ -1861,6 +1875,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateAssessment,
         deleteAssessment,
         setScore,
+        deleteScore,
         batchUpdateScores,
         importOfficialGrades,
         setAttendance,

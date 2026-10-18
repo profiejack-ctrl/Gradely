@@ -79,6 +79,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
     attendance,
     students,
     setScore,
+    deleteScore,
     addAssessment,
     updateAssessment,
     deleteAssessment,
@@ -176,7 +177,12 @@ export const Gradebook: React.FC<GradebookProps> = ({
     : [];
 
   const handleScoreChange = (assessmentId: string, studentId: string, rawVal: string, maxScore: number) => {
-    const num = rawVal === '' ? 0 : Number(rawVal);
+    if (rawVal.trim() === '') {
+      deleteScore(assessmentId, studentId);
+      return;
+    }
+    const num = Number(rawVal);
+    if (isNaN(num)) return;
     const validScore = Math.max(0, Math.min(maxScore, num));
     setScore(assessmentId, studentId, validScore);
   };
@@ -1173,7 +1179,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
                               const scoreRec = scores.find(
                                 (s) => s.assessmentId === ass.id && s.studentId === student.id
                               );
-                              const currentScore = scoreRec !== undefined ? scoreRec.score : '';
+                              const currentScore = scoreRec !== undefined && typeof scoreRec.score === 'number' ? scoreRec.score : '';
 
                               return (
                                 <td
@@ -1194,8 +1200,8 @@ export const Gradebook: React.FC<GradebookProps> = ({
                                           ass.maxScore
                                         )
                                       }
-                                      className="w-11 py-1 px-1 text-center font-bold text-slate-900 dark:text-slate-100 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 focus:bg-white dark:focus:bg-slate-900 transition-all"
-                                      placeholder="0"
+                                      className="w-11 py-1 px-1 text-center font-bold text-slate-900 dark:text-slate-100 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 focus:bg-white dark:focus:bg-slate-900 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                                      placeholder="—"
                                     />
                                   </div>
                                 </td>

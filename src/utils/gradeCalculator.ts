@@ -203,9 +203,11 @@ export function isTransmutableComponent(
  * - 81-82: 91, 83-84: 92, 85-86: 93, 87-88: 94, 89-90: 95
  * - 91-92: 96, 93-94: 97, 95-96: 98, 97-98: 99, 99-100: 100
  */
-export function transmuteGrade(rawPercentage: number, hasAttempt: boolean = true): number {
-  if (!hasAttempt) return 50;
-  const raw = Math.min(100, Math.max(0, Math.round(rawPercentage)));
+export function transmuteGrade(rawPercentage: number | null | undefined, hasAttempt: boolean = true): number {
+  if (!hasAttempt || rawPercentage === null || rawPercentage === undefined || isNaN(Number(rawPercentage))) {
+    return 50;
+  }
+  const raw = Math.min(100, Math.max(0, Math.round(Number(rawPercentage))));
   if (raw === 0) return 65;
   if (raw <= 6) return 66;
   if (raw <= 12) return 67;
@@ -310,20 +312,22 @@ export function calculateSubCategorySummary(
 
   let totalEarned = 0;
   let totalMax = 0;
+  let hasAttempt = false;
 
   for (const assessment of subAssessments) {
     const scoreRec = scores.find(
       (s) => s.assessmentId === assessment.id && s.studentId === studentId
     );
     totalMax += assessment.maxScore;
-    if (scoreRec) {
+    if (scoreRec && typeof scoreRec.score === 'number' && !isNaN(scoreRec.score)) {
+      hasAttempt = true;
       totalEarned += Math.min(assessment.maxScore, Math.max(0, scoreRec.score));
     }
   }
 
   const rawPct = totalMax > 0 ? (totalEarned / totalMax) * 100 : 0;
   const roundedRawPct = Math.round(rawPct * 10) / 10;
-  const effectivePct = isTransmutable ? transmuteGrade(roundedRawPct, true) : roundedRawPct;
+  const effectivePct = isTransmutable ? transmuteGrade(roundedRawPct, hasAttempt) : roundedRawPct;
   const weighted = (effectivePct * subCat.weight) / 100;
 
   return {
@@ -456,13 +460,15 @@ export function calculateCategorySummary(
 
   let totalEarned = 0;
   let totalMax = 0;
+  let hasAttempt = false;
 
   for (const assessment of categoryAssessments) {
     const scoreRec = scores.find(
       (s) => s.assessmentId === assessment.id && s.studentId === studentId
     );
     totalMax += assessment.maxScore;
-    if (scoreRec) {
+    if (scoreRec && typeof scoreRec.score === 'number' && !isNaN(scoreRec.score)) {
+      hasAttempt = true;
       totalEarned += Math.min(assessment.maxScore, Math.max(0, scoreRec.score));
     }
   }
@@ -474,7 +480,7 @@ export function calculateCategorySummary(
   // Attendance and Projects remain fixed.
   let effectivePct = roundedRawPct;
   if (isTransmutable && categoryAssessments.length > 0) {
-    effectivePct = transmuteGrade(roundedRawPct, true);
+    effectivePct = transmuteGrade(roundedRawPct, hasAttempt);
   }
 
   const weighted = (effectivePct * category.weight) / 100;
