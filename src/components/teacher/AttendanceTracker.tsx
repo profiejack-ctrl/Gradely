@@ -6,6 +6,7 @@ import { NeuCard } from '../common/NeuCard';
 import { NeuButton } from '../common/NeuButton';
 import { NeuBadge } from '../common/NeuBadge';
 import { NeuSelect } from '../common/NeuInput';
+import { NeuModal } from '../common/NeuModal';
 import { HolidayModal } from './HolidayModal';
 import { calculateAttendanceStats } from '../../utils/gradeCalculator';
 import {
@@ -21,6 +22,10 @@ import {
   AlertTriangle,
   Layers,
   GraduationCap,
+  Search,
+  RotateCcw,
+  Trash2,
+  AlertCircle,
 } from 'lucide-react';
 import { compareByLastName, formatLastFirst } from '../../utils/nameUtils';
 import { isStudentInSection } from '../../utils/enrollmentUtils';
@@ -49,6 +54,8 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
     holidays,
     setAttendance,
     markAllAttendance,
+    clearAttendanceForDate,
+    deleteAttendanceRecord,
     addHoliday,
     deleteHoliday,
   } = useData();
@@ -113,12 +120,55 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
   const sectionStudents = students.filter((s) => isStudentInSection(s, selectedSectionId));
   const sortedStudents = [...sectionStudents].sort((a, b) => compareByLastName(a.name, b.name, 'asc'));
 
-  // Status handler
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
+
+  // Filter students by search query (name or student ID number)
+  const filteredStudents = sortedStudents.filter((student) => {
+    if (!studentSearchQuery.trim()) return true;
+    const q = studentSearchQuery.toLowerCase().trim();
+    const nameMatch = student.name.toLowerCase().includes(q);
+    const idMatch = student.studentNumber ? student.studentNumber.toLowerCase().includes(q) : false;
+    return nameMatch || idMatch;
+  });
+
+  // Status handler - clicking an active status again unmarks the student
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
     if (!activeSubject) return;
+    const existing = attendance.find(
+      (a) => a.subjectId === activeSubject.id && a.studentId === studentId && a.date === selectedDate
+    );
+    if (existing && existing.status === status) {
+      deleteAttendanceRecord(existing.id);
+      onShowToast('Student Unmarked', 'Attendance record cleared for this session.', 'info');
+      return;
+    }
+
     const periodToUse: GradingPeriod =
       activePeriod === 'all' ? 'prelim' : activePeriod;
     setAttendance(activeSubject.id, studentId, selectedDate, status, undefined, periodToUse);
+  };
+
+  const handleUnmarkStudent = (studentId: string, studentName: string) => {
+    if (!activeSubject) return;
+    const existing = attendance.find(
+      (a) => a.subjectId === activeSubject.id && a.studentId === studentId && a.date === selectedDate
+    );
+    if (existing) {
+      deleteAttendanceRecord(existing.id);
+      onShowToast('Record Cleared', `Attendance cleared for ${formatLastFirst(studentName)}.`, 'info');
+    }
+  };
+
+  const handleClearDayRoll = () => {
+    if (!activeSubject) return;
+    clearAttendanceForDate(
+      activeSubject.id,
+      selectedDate,
+      sectionStudents.map((s) => s.id)
+    );
+    setIsConfirmClearOpen(false);
+    onShowToast('Day Roll Call Cleared', `All attendance records for ${selectedDate} have been removed.`, 'info');
   };
 
   const handleNoteChange = (studentId: string, currentStatus: AttendanceStatus, note: string) => {
@@ -661,136 +711,257 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
           >
             Mark All Absent
           </NeuButton>
+
+          {datePresent + dateLate + dateAbsent + dateExcused > 0 && (
+            <NeuButton
+              variant="danger"
+              size="sm"
+              onClick={() => setIsConfirmClearOpen(true)}
+              leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+              title="Clear all recorded attendance entries for this day"
+            >
+              Clear Day Roll ({datePresent + dateLate + dateAbsent + dateExcused})
+            </NeuButton>
+          )}
+        </div>
+      </div>
+
+      {/* Student Search and Filter Bar */}
+      <div className="bg-white dark:bg-[#0d1424] border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search student by name or student ID (e.g. Abayon, 250102531)..."
+            value={studentSearchQuery}
+            onChange={(e) => setStudentSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-9 py-2 rounded-xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200/80 dark:border-slate-700/80 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all"
+          />
+          {studentSearchQuery && (
+            <button
+              type="button"
+              onClick={() => setStudentSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+              title="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between sm:justify-end gap-2 text-xs text-slate-500 shrink-0">
+          <span>
+            Showing <strong className="text-slate-900 dark:text-white font-bold">{filteredStudents.length}</strong> of {sortedStudents.length} students
+          </span>
+          {studentSearchQuery && (
+            <button
+              type="button"
+              onClick={() => setStudentSearchQuery('')}
+              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              Clear Filter
+            </button>
+          )}
         </div>
       </div>
 
       {/* Roll Call Students List */}
-      <div className="grid grid-cols-1 gap-3">
-        {sortedStudents.map((student) => {
-          const rec = attendance.find(
-            (a) =>
-              a.subjectId === activeSubject.id &&
-              a.studentId === student.id &&
-              a.date === selectedDate
-          );
+      {filteredStudents.length === 0 ? (
+        <div className="p-8 text-center bg-white dark:bg-[#0d1424] rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+          <Search className="w-8 h-8 text-slate-400 mx-auto" />
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">No Students Found</h3>
+          <p className="text-xs text-slate-500">
+            No enrolled students match "{studentSearchQuery}".
+          </p>
+          <div className="pt-2">
+            <NeuButton variant="secondary" size="sm" onClick={() => setStudentSearchQuery('')}>
+              Clear Search Filter
+            </NeuButton>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3">
+          {filteredStudents.map((student) => {
+            const rec = attendance.find(
+              (a) =>
+                a.subjectId === activeSubject.id &&
+                a.studentId === student.id &&
+                a.date === selectedDate
+            );
 
-          const hasRecord = Boolean(rec);
-          const currentStatus: AttendanceStatus | undefined = rec?.status;
-          const periodToQuery = activePeriod === 'all' ? undefined : activePeriod;
-          const stats = calculateAttendanceStats(attendance, student.id, activeSubject.id, periodToQuery);
+            const hasRecord = Boolean(rec);
+            const currentStatus: AttendanceStatus | undefined = rec?.status;
+            const periodToQuery = activePeriod === 'all' ? undefined : activePeriod;
+            const stats = calculateAttendanceStats(attendance, student.id, activeSubject.id, periodToQuery);
 
-          return (
-            <NeuCard
-              key={student.id}
-              className={`p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3.5 transition-all ${
-                !hasRecord ? 'border-dashed border-slate-300 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/30' : ''
-              }`}
-            >
-              {/* Student Profile Info */}
-              <div className="flex items-center gap-3 min-w-0 md:w-1/3">
-                <img
-                  src={student.avatar}
-                  alt={student.name}
-                  className="w-10 h-10 rounded-xl object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
-                />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
-                      {formatLastFirst(student.name)}
-                    </h3>
-                    {!hasRecord && (
-                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded-md border border-amber-200/80 dark:border-amber-800/80">
-                        Pending Roll
+            return (
+              <NeuCard
+                key={student.id}
+                className={`p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3.5 transition-all ${
+                  !hasRecord ? 'border-dashed border-slate-300 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/30' : ''
+                }`}
+              >
+                {/* Student Profile Info */}
+                <div className="flex items-center gap-3 min-w-0 md:w-1/3">
+                  <img
+                    src={student.avatar}
+                    alt={student.name}
+                    className="w-10 h-10 rounded-xl object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        {formatLastFirst(student.name)}
+                      </h3>
+                      {!hasRecord && (
+                        <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded-md border border-amber-200/80 dark:border-amber-800/80">
+                          Pending Roll
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
+                      <span>{student.studentNumber || 'No ID'}</span>
+                      <span>•</span>
+                      <span
+                        className={`font-mono font-bold ${
+                          stats.rate >= 90
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : stats.rate >= 75
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-rose-600 dark:text-rose-400'
+                        }`}
+                      >
+                        {stats.rate}% {activePeriod === 'all' ? 'Overall' : activePeriod.toUpperCase()} Rate
                       </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
-                    <span>{student.studentNumber || 'No ID'}</span>
-                    <span>•</span>
-                    <span
-                      className={`font-mono font-bold ${
-                        stats.rate >= 90
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : stats.rate >= 75
-                          ? 'text-amber-600 dark:text-amber-400'
-                          : 'text-rose-600 dark:text-rose-400'
-                      }`}
-                    >
-                      {stats.rate}% {activePeriod === 'all' ? 'Overall' : activePeriod.toUpperCase()} Rate
-                    </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Status Segmented Buttons */}
-              <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleStatusChange(student.id, 'present')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                    hasRecord && currentStatus === 'present'
-                      ? 'bg-emerald-600 text-white shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
-                  }`}
-                >
-                  <Check className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'present' ? 'text-white' : 'text-emerald-600'}`} />
-                  <span>Present</span>
-                </button>
+                {/* Status Segmented Buttons */}
+                <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange(student.id, 'present')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                      hasRecord && currentStatus === 'present'
+                        ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
+                    }`}
+                    title={hasRecord && currentStatus === 'present' ? 'Click again to unmark student' : 'Mark Present'}
+                  >
+                    <Check className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'present' ? 'text-white' : 'text-emerald-600'}`} />
+                    <span>Present</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleStatusChange(student.id, 'late')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                    hasRecord && currentStatus === 'late'
-                      ? 'bg-amber-500 text-white shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
-                  }`}
-                >
-                  <Clock className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'late' ? 'text-white' : 'text-amber-600'}`} />
-                  <span>Late</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange(student.id, 'late')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                      hasRecord && currentStatus === 'late'
+                        ? 'bg-amber-500 text-white shadow-xs font-bold'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
+                    }`}
+                    title={hasRecord && currentStatus === 'late' ? 'Click again to unmark student' : 'Mark Late'}
+                  >
+                    <Clock className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'late' ? 'text-white' : 'text-amber-600'}`} />
+                    <span>Late</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleStatusChange(student.id, 'absent')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                    hasRecord && currentStatus === 'absent'
-                      ? 'bg-rose-600 text-white shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
-                  }`}
-                >
-                  <X className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'absent' ? 'text-white' : 'text-rose-600'}`} />
-                  <span>Absent</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange(student.id, 'absent')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                      hasRecord && currentStatus === 'absent'
+                        ? 'bg-rose-600 text-white shadow-xs font-bold'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
+                    }`}
+                    title={hasRecord && currentStatus === 'absent' ? 'Click again to unmark student' : 'Mark Absent'}
+                  >
+                    <X className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'absent' ? 'text-white' : 'text-rose-600'}`} />
+                    <span>Absent</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleStatusChange(student.id, 'excused')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                    hasRecord && currentStatus === 'excused'
-                      ? 'bg-sky-600 text-white shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-sky-700 dark:hover:text-sky-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
-                  }`}
-                >
-                  <ShieldAlert className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'excused' ? 'text-white' : 'text-sky-600'}`} />
-                  <span>Excused</span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange(student.id, 'excused')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                      hasRecord && currentStatus === 'excused'
+                        ? 'bg-sky-600 text-white shadow-xs font-bold'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-sky-700 dark:hover:text-sky-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
+                    }`}
+                    title={hasRecord && currentStatus === 'excused' ? 'Click again to unmark student' : 'Mark Excused'}
+                  >
+                    <ShieldAlert className={`w-3.5 h-3.5 ${hasRecord && currentStatus === 'excused' ? 'text-white' : 'text-sky-600'}`} />
+                    <span>Excused</span>
+                  </button>
 
-              {/* Note input */}
-              <div className="md:w-1/4">
-                <input
-                  type="text"
-                  placeholder="Optional remark / reason..."
-                  value={rec?.note || ''}
-                  onChange={(e) => handleNoteChange(student.id, currentStatus || 'present', e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
-                />
-              </div>
-            </NeuCard>
-          );
-        })}
-      </div>
+                  {hasRecord && (
+                    <button
+                      type="button"
+                      onClick={() => handleUnmarkStudent(student.id, student.name)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-white/60 dark:hover:bg-slate-700/60 transition-colors ml-0.5"
+                      title="Clear / Unmark attendance for this student"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Note input */}
+                <div className="md:w-1/4">
+                  <input
+                    type="text"
+                    placeholder="Optional remark / reason..."
+                    value={rec?.note || ''}
+                    onChange={(e) => handleNoteChange(student.id, currentStatus || 'present', e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                  />
+                </div>
+              </NeuCard>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Confirmation Modal: Clear Day Roll Call */}
+      <NeuModal
+        isOpen={isConfirmClearOpen}
+        onClose={() => setIsConfirmClearOpen(false)}
+        title="Clear Day Attendance Roll"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs sm:text-sm">
+            <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold">Are you sure you want to clear this day's attendance roll?</p>
+              <p className="text-xs text-rose-700 dark:text-rose-300 leading-relaxed">
+                This will delete all <strong>{datePresent + dateLate + dateAbsent + dateExcused}</strong> recorded attendance entries for{' '}
+                <strong>{selectedDate}</strong> in <strong>{activeSubject.code}</strong>. All students will return to unrecorded (pending roll call) status.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-2">
+            <NeuButton
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsConfirmClearOpen(false)}
+            >
+              Cancel
+            </NeuButton>
+
+            <NeuButton
+              variant="danger"
+              size="sm"
+              onClick={handleClearDayRoll}
+              leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+            >
+              Yes, Clear Day Attendance
+            </NeuButton>
+          </div>
+        </div>
+      </NeuModal>
 
       {/* Holiday Modal */}
       <HolidayModal

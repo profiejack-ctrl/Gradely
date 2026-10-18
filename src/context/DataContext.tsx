@@ -94,6 +94,12 @@ interface DataContextType {
     status: AttendanceStatus,
     period?: GradingPeriod
   ) => void;
+  clearAttendanceForDate: (
+    subjectId: string,
+    date: string,
+    studentIds?: string[]
+  ) => void;
+  deleteAttendanceRecord: (id: string) => void;
 
   // Holidays
   addHoliday: (holiday: Omit<Holiday, 'id'>) => Holiday;
@@ -813,6 +819,35 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const clearAttendanceForDate = (
+    subjectId: string,
+    date: string,
+    studentIds?: string[]
+  ) => {
+    const studentIdSet = studentIds && studentIds.length > 0 ? new Set(studentIds) : null;
+    const toDelete = attendance.filter((a) => {
+      if (a.subjectId !== subjectId || a.date !== date) return false;
+      if (studentIdSet && !studentIdSet.has(a.studentId)) return false;
+      return true;
+    });
+
+    if (toDelete.length === 0) return;
+
+    const deleteIds = new Set(toDelete.map((a) => a.id));
+    setAttendanceRecords((prev) => prev.filter((a) => !deleteIds.has(a.id)));
+
+    syncEngine.enqueueBatch(
+      'attendance_records',
+      'DELETE',
+      toDelete.map((a) => ({ id: a.id }))
+    );
+  };
+
+  const deleteAttendanceRecord = (id: string) => {
+    setAttendanceRecords((prev) => prev.filter((a) => a.id !== id));
+    syncEngine.enqueue('attendance_records', 'DELETE', { id });
+  };
+
   // --- Holiday actions ---
   const addHoliday = (holData: Omit<Holiday, 'id'>): Holiday => {
     const newHol: Holiday = {
@@ -1481,6 +1516,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         batchUpdateScores,
         setAttendance,
         markAllAttendance,
+        clearAttendanceForDate,
+        deleteAttendanceRecord,
         addHoliday,
         deleteHoliday,
         addStudent,
