@@ -1099,6 +1099,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: recId,
         assessment_id: targetAss.id,
         student_id: student.id,
+        student_number: student.studentNumber || undefined,
         score: sc.score,
         remarks: sc.remarks,
       });
@@ -1149,6 +1150,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: recId,
           subject_id: subjectId,
           student_id: student.id,
+          student_number: student.studentNumber || undefined,
           date: att.date,
           status: att.status,
           period,
@@ -1169,7 +1171,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (syncState.isConfigured && (typeof navigator === 'undefined' || navigator.onLine)) {
       const syncResult = await syncEngine.flushQueue();
       if (!syncResult.success) {
-        throw new Error('The grade data was saved locally, but the cloud upload did not finish. Please retry when the connection is stable.');
+        throw new Error(
+          `The grade data was saved locally, but the cloud upload failed: ${
+            syncResult.error || 'Please retry when the connection is stable.'
+          }`
+        );
       }
     }
 

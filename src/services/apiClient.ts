@@ -237,7 +237,7 @@ export function clearOfflineQueue(): void {
 }
 
 /** Flush all queued offline mutations to the backend in fast, chunked batches */
-export async function flushOfflineQueue(): Promise<{ success: boolean; synced: number }> {
+export async function flushOfflineQueue(): Promise<{ success: boolean; synced: number; error?: string }> {
   // Keep requests comfortably below the backend's 2,000-mutation ceiling while
   // avoiding hundreds of round trips for a normal grade sheet import.
   const BATCH_SIZE = 500;
@@ -257,7 +257,7 @@ export async function flushOfflineQueue(): Promise<{ success: boolean; synced: n
     const result = await dataApi.sync(mutations);
     if (result.status === 0) {
       // Offline or network error
-      return { success: false, synced: totalSynced };
+      return { success: false, synced: totalSynced, error: result.error || 'Unable to reach the API server.' };
     }
 
     if (!result.error && result.data?.success !== false) {
@@ -280,7 +280,10 @@ export async function flushOfflineQueue(): Promise<{ success: boolean; synced: n
         const remaining = loadOfflineQueue().filter(q => !chunkIds.has(q.id));
         saveOfflineQueue(remaining);
       }
-      return { success: false, synced: totalSynced };
+      const serverError = result.error ||
+        (Array.isArray(result.data?.errors) ? result.data.errors.join('; ') : '') ||
+        `The API rejected the sync request (HTTP ${result.status}).`;
+      return { success: false, synced: totalSynced, error: serverError };
     }
   }
 

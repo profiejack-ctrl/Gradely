@@ -11,14 +11,16 @@ import {
 export const SyncStatusPill: React.FC = () => {
   const { pullFromCloud, pushAllToCloud } = useData();
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
+  const [queueLength, setQueueLength] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const unsubscribe = syncEngine.subscribeStatus((status) => {
+    const unsubscribe = syncEngine.subscribeStatus((status, pendingCount) => {
       setSyncStatus(status);
+      setQueueLength(pendingCount);
     });
     return unsubscribe;
   }, []);
@@ -65,6 +67,13 @@ export const SyncStatusPill: React.FC = () => {
     }, 1000);
   };
 
+  const handleClearPending = () => {
+    if (!window.confirm('Discard the failed pending uploads from this browser? Local changes will remain on this device, but will need to be imported again.')) return;
+    syncEngine.clearQueue();
+    setQueueLength(0);
+    setFeedbackMsg('Failed pending uploads discarded.');
+  };
+
   return (
     <div className="relative" ref={menuRef}>
       {/* Status Pill Button */}
@@ -101,13 +110,22 @@ export const SyncStatusPill: React.FC = () => {
             <div>
               <div className="font-bold text-slate-900 dark:text-white">Cloud Database Connected</div>
               <div className="text-[10px] text-slate-500">
-                {feedbackMsg || 'Pure online cloud mode enabled'}
+                {feedbackMsg || (queueLength > 0 ? `${queueLength} pending upload${queueLength === 1 ? '' : 's'}` : 'Pure online cloud mode enabled')}
               </div>
             </div>
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           </div>
 
           <div className="space-y-1">
+            <button
+              onClick={handleClearPending}
+              disabled={queueLength === 0}
+              className="w-full px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors text-left"
+              title={queueLength > 0 ? 'Discard failed uploads waiting in this browser' : 'There are no pending uploads'}
+            >
+              {queueLength > 0 ? `Discard Failed Pending Uploads (${queueLength})` : 'No Failed Pending Uploads'}
+            </button>
+
             <button
               onClick={handlePullLatest}
               disabled={isSyncing}
