@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { NeuCard } from '../common/NeuCard';
 import { NeuBadge } from '../common/NeuBadge';
-import { calculateStudentSubjectPerformance } from '../../utils/gradeCalculator';
+import { calculateStudentSubjectPerformance, isAttendanceCategory } from '../../utils/gradeCalculator';
 import { getStudentEnrolledSubjects } from '../../utils/enrollmentUtils';
 import { PieChart, Sparkles } from 'lucide-react';
 
@@ -107,7 +107,53 @@ export const MatrixBreakdownView: React.FC = () => {
                         </NeuBadge>
                       </div>
 
-                      <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-700/80">
+                      <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700/80">
+                        {/* Subcategory Level Breakdown (e.g. Attendance 10%, WW 40%, PT 50%) */}
+                        {catSummary.subCategorySummaries && catSummary.subCategorySummaries.length > 0 && (
+                          <div className="space-y-1.5 pb-1">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              Components Breakdown
+                            </div>
+                            {catSummary.subCategorySummaries.map((sub) => (
+                              <div
+                                key={sub.subCategory.id}
+                                className="p-1.5 rounded-lg bg-white dark:bg-slate-900/70 border border-slate-200/60 dark:border-slate-800/60 space-y-1 text-xs"
+                              >
+                                <div className="flex items-center justify-between gap-1 flex-wrap">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px]">
+                                      {sub.subCategory.name}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">
+                                      ({sub.subCategory.weight}%)
+                                    </span>
+                                    {sub.isTransmutable ? (
+                                      <span className="text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                        ⚡ Transmuted
+                                      </span>
+                                    ) : (
+                                      <span className="text-[9px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                                        Fixed Grade
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="font-bold text-indigo-600 dark:text-indigo-400 text-xs">
+                                    +{sub.weightedContribution}%
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                                  <span>Raw: {sub.rawPercentage}%</span>
+                                  {sub.isTransmutable && sub.assessmentCount > 0 && sub.transmutedPercentage !== sub.rawPercentage && (
+                                    <span className="text-amber-600 dark:text-amber-400 font-medium">
+                                      Transmuted: {sub.transmutedPercentage}% (Annex A)
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                         <div className="flex justify-between text-xs text-slate-500">
                           <span>Raw Score:</span>
                           <span className="text-slate-900 dark:text-slate-100 font-semibold">
@@ -120,15 +166,20 @@ export const MatrixBreakdownView: React.FC = () => {
                             <span>Grading Type:</span>
                             <span>Fixed Grade (Non-transmutable)</span>
                           </div>
+                        ) : isAttendanceCategory(catSummary.category) ? (
+                          <div className="flex justify-between text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                            <span>Grading Type:</span>
+                            <span>Fixed Grade (Attendance)</span>
+                          </div>
                         ) : catSummary.isTransmutable && catSummary.transmutedPercentage !== undefined && catSummary.assessmentCount > 0 ? (
                           <div className="flex justify-between text-[11px] text-amber-600 dark:text-amber-400 font-semibold">
-                            <span>Transmuted Grade:</span>
-                            <span>{catSummary.transmutedPercentage}% (Annex A)</span>
+                            <span>Category Effective:</span>
+                            <span>{catSummary.transmutedPercentage}%</span>
                           </div>
                         ) : null}
 
                         <div className="flex justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                          <span>Contribution:</span>
+                          <span>Total Contribution:</span>
                           <span>+{catSummary.weightedContribution}% pts</span>
                         </div>
 

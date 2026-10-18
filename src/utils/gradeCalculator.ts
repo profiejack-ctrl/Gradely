@@ -71,15 +71,30 @@ export function calculateAttendanceStats(
 }
 
 /**
- * Detects whether a grading category represents a Project (e.g. CBO, Course-based Output, Capstone, Portfolio)
+ * Detects whether a grading category or subcategory represents Attendance.
+ * Attendance is NOT transmutable under institutional grading rules; it is a fixed grade only.
+ */
+export function isAttendanceCategory(
+  category: MatrixCategory | MatrixSubCategory | { name: string; id?: string }
+): boolean {
+  const name = (category.name || '').toLowerCase();
+  const id = (category.id || '').toLowerCase();
+  return (
+    name.includes('attend') ||
+    id.includes('attend') ||
+    name.includes('roll call') ||
+    id.includes('roll-call') ||
+    name.includes('presence')
+  );
+}
+
+/**
+ * Detects whether a grading category represents a Project (e.g. CBO, Course-based Output, Capstone, Portfolio, OCR)
  * Projects are NOT transmutable under institutional grading rules; they are fixed grades only.
  */
 export function isProjectCategory(
-  category: MatrixCategory | MatrixSubCategory | { name: string; id?: string; isTransmutable?: boolean }
+  category: MatrixCategory | MatrixSubCategory | { name: string; id?: string }
 ): boolean {
-  if ('isTransmutable' in category && (category as { isTransmutable?: boolean }).isTransmutable !== undefined) {
-    return !(category as { isTransmutable?: boolean }).isTransmutable;
-  }
   const name = (category.name || '').toLowerCase();
   const id = (category.id || '').toLowerCase();
   return (
@@ -90,8 +105,86 @@ export function isProjectCategory(
     name.includes('course-based') ||
     id.includes('course-based') ||
     name.includes('capstone') ||
-    name.includes('portfolio')
+    name.includes('portfolio') ||
+    name.includes('ocr') ||
+    id.includes('ocr') ||
+    name.includes('off-campus') ||
+    id.includes('off-campus')
   );
+}
+
+/**
+ * Bestlink College of the Philippines (BCP) Institutional Rule (AY 2025-2026):
+ * ONLY Written Works (WW), Performance Tasks (PT), and Periodic Examinations (WE/OE) are transmutable via Annex A.
+ * Attendance and Projects (CBO, OCR, Capstone, Portfolio) are strictly non-transmutable (fixed grades only).
+ */
+export function isTransmutableComponent(
+  item: MatrixCategory | MatrixSubCategory | { name: string; id?: string; isTransmutable?: boolean },
+  parentCategory?: MatrixCategory | { name: string; id?: string; isTransmutable?: boolean }
+): boolean {
+  // 1. Explicit override if present
+  if ('isTransmutable' in item && (item as { isTransmutable?: boolean }).isTransmutable !== undefined) {
+    return Boolean((item as { isTransmutable?: boolean }).isTransmutable);
+  }
+  if (
+    parentCategory &&
+    'isTransmutable' in parentCategory &&
+    (parentCategory as { isTransmutable?: boolean }).isTransmutable !== undefined
+  ) {
+    if (!(parentCategory as { isTransmutable?: boolean }).isTransmutable) return false;
+  }
+
+  // 2. Attendance is strictly non-transmutable (fixed grade)
+  if (isAttendanceCategory(item) || (parentCategory && isAttendanceCategory(parentCategory))) {
+    return false;
+  }
+
+  // 3. Projects are strictly non-transmutable (fixed grade)
+  if (isProjectCategory(item) || (parentCategory && isProjectCategory(parentCategory))) {
+    return false;
+  }
+
+  const name = (item.name || '').toLowerCase();
+  const id = (item.id || '').toLowerCase();
+  const parentName = parentCategory ? (parentCategory.name || '').toLowerCase() : '';
+  const combined = `${name} ${id} ${parentName}`;
+
+  // Written Works (quizzes, essays, case studies, assignments, exercises, homework)
+  const isWW =
+    combined.includes('written') ||
+    combined.includes('quiz') ||
+    combined.includes('seatwork') ||
+    combined.includes('exercise') ||
+    combined.includes('assignment') ||
+    combined.includes('homework') ||
+    combined.includes('essay') ||
+    combined.includes('ww');
+
+  // Performance Tasks (lab activities, practical exercises, demonstrations, simulations, recitations, group work)
+  const isPT =
+    combined.includes('performance') ||
+    combined.includes('task') ||
+    combined.includes('pt') ||
+    combined.includes('lab') ||
+    combined.includes('activity') ||
+    combined.includes('simulation') ||
+    combined.includes('demonstration') ||
+    combined.includes('recitation') ||
+    combined.includes('practicum');
+
+  // Periodic Examinations (Written Exams WE, Oral Exams OE, Defense, Periodic Test)
+  const isExam =
+    combined.includes('exam') ||
+    combined.includes('we') ||
+    combined.includes('oe') ||
+    combined.includes('test') ||
+    combined.includes('defense') ||
+    combined.includes('periodic') ||
+    combined.includes('prelim') ||
+    combined.includes('midterm') ||
+    combined.includes('final');
+
+  return isWW || isPT || isExam;
 }
 
 /**
@@ -165,21 +258,21 @@ export function calculateSubCategorySummary(
   period?: GradingPeriod,
   useTransmutation: boolean = true
 ): SubCategoryScoreSummary {
-  const isAttendance =
-    subCat.name.toLowerCase().includes('attend') ||
-    subCat.id.toLowerCase().includes('attend');
+  const isAttendance = isAttendanceCategory(subCat) || isAttendanceCategory(parentCat);
 
   if (isAttendance) {
     const attStats = calculateAttendanceStats(attendanceRecords, studentId, subjectId, period);
     const rawPct = attStats.total > 0 ? attStats.rate : 0;
-    const weighted = (rawPct * subCat.weight) / 100;
+    const roundedRawPct = Math.round(rawPct * 10) / 10;
+    // Attendance is strictly fixed (non-transmutable)
+    const weighted = (roundedRawPct * subCat.weight) / 100;
 
     return {
       subCategory: subCat,
       earnedPoints: Math.round(rawPct),
       maxPoints: 100,
-      rawPercentage: Math.round(rawPct * 10) / 10,
-      transmutedPercentage: Math.round(rawPct * 10) / 10,
+      rawPercentage: roundedRawPct,
+      transmutedPercentage: roundedRawPct,
       weightedContribution: Math.round(weighted * 10) / 10,
       assessmentCount: attStats.total,
       isTransmutable: false,
@@ -199,8 +292,8 @@ export function calculateSubCategorySummary(
     );
   });
 
-  const isProject = isProjectCategory(parentCat) || isProjectCategory(subCat);
-  const isTransmutable = useTransmutation && !isProject;
+  // Only Written Works, Performance Tasks, and Exam are transmutable
+  const isTransmutable = useTransmutation && isTransmutableComponent(subCat, parentCat);
 
   if (subAssessments.length === 0) {
     return {
@@ -230,14 +323,15 @@ export function calculateSubCategorySummary(
 
   const rawPct = totalMax > 0 ? (totalEarned / totalMax) * 100 : 0;
   const roundedRawPct = Math.round(rawPct * 10) / 10;
-  const weighted = (roundedRawPct * subCat.weight) / 100;
+  const effectivePct = isTransmutable ? transmuteGrade(roundedRawPct, true) : roundedRawPct;
+  const weighted = (effectivePct * subCat.weight) / 100;
 
   return {
     subCategory: subCat,
     earnedPoints: Math.round(totalEarned * 10) / 10,
     maxPoints: totalMax,
     rawPercentage: roundedRawPct,
-    transmutedPercentage: isTransmutable ? transmuteGrade(roundedRawPct, true) : roundedRawPct,
+    transmutedPercentage: Math.round(effectivePct * 10) / 10,
     weightedContribution: Math.round(weighted * 10) / 10,
     assessmentCount: subAssessments.length,
     isTransmutable,
@@ -258,9 +352,9 @@ export function calculateCategorySummary(
   useTransmutation: boolean = true
 ): CategoryScoreSummary {
   const isProject = isProjectCategory(category);
-  const isTransmutable = useTransmutation && !isProject && (category.isTransmutable !== false);
+  const isAttendance = isAttendanceCategory(category);
 
-  // If category has nested subcategories (e.g. Class Standing -> Attendance, Performance Task, Quizzes)
+  // If category has nested subcategories (e.g. Class Standing -> Attendance 10%, Quizzes 40%, Performance Tasks 50%)
   if (category.subCategories && category.subCategories.length > 0) {
     const subSummaries = category.subCategories.map((sub) =>
       calculateSubCategorySummary(
@@ -276,59 +370,60 @@ export function calculateCategorySummary(
       )
     );
 
+    let parentEffectivePct = 0;
     let parentRawPct = 0;
     let totalAssessments = 0;
     let totalEarned = 0;
     let totalMax = 0;
 
     for (const sub of subSummaries) {
-      parentRawPct += sub.weightedContribution;
+      parentEffectivePct += sub.weightedContribution;
+      parentRawPct += (sub.rawPercentage * sub.subCategory.weight) / 100;
       totalAssessments += sub.assessmentCount;
       totalEarned += sub.earnedPoints;
       totalMax += sub.maxPoints;
     }
 
-    const roundedParentPct = Math.min(100, Math.max(0, Math.round(parentRawPct * 10) / 10));
+    const roundedParentEffectivePct = Math.min(100, Math.max(0, Math.round(parentEffectivePct * 10) / 10));
+    const roundedParentRawPct = Math.min(100, Math.max(0, Math.round(parentRawPct * 10) / 10));
 
-    // When isTransmutable is true, Class Standing is transmuted once academic assessments exist.
-    // If only attendance is logged (totalAssessments === 0), attendance contributes its raw portion without false transmutation.
-    let effectivePct = roundedParentPct;
-    if (isTransmutable && totalAssessments > 0) {
-      effectivePct = transmuteGrade(roundedParentPct, true);
-    }
+    // Notice: Each transmutable subcomponent (Written Works, Performance Tasks, Exam)
+    // already had transmuteGrade() applied to compute its weightedContribution.
+    // Non-transmutable subcomponents (Attendance, Projects) contributed their fixed raw rate.
+    // The parent category (e.g. Class Standing) is the weighted sum of these subcomponents,
+    // so we NEVER apply transmuteGrade() to the parent composite again!
+    const parentWeighted = (roundedParentEffectivePct * category.weight) / 100;
 
-    const parentWeighted = (effectivePct * category.weight) / 100;
+    const hasTransmutableSub = subSummaries.some((s) => s.isTransmutable);
 
     return {
       category,
       earnedPoints: Math.round(totalEarned * 10) / 10,
       maxPoints: totalMax,
-      rawPercentage: roundedParentPct,
-      transmutedPercentage: Math.round(effectivePct * 10) / 10,
+      rawPercentage: roundedParentRawPct,
+      transmutedPercentage: roundedParentEffectivePct,
       weightedContribution: Math.round(parentWeighted * 10) / 10,
       assessmentCount: totalAssessments,
       subCategorySummaries: subSummaries,
-      isTransmutable,
+      isTransmutable: hasTransmutableSub,
       isProject,
     };
   }
 
   // Standalone Attendance category
-  const isAttendanceCat =
-    category.name.toLowerCase().includes('attend') ||
-    category.id.toLowerCase().includes('attend');
-
-  if (isAttendanceCat) {
+  if (isAttendance) {
     const attStats = calculateAttendanceStats(attendanceRecords, studentId, subjectId, period);
     const rawPct = attStats.total > 0 ? attStats.rate : 0;
-    const weighted = (rawPct * category.weight) / 100;
+    const roundedRawPct = Math.round(rawPct * 10) / 10;
+    // Attendance is strictly fixed (non-transmutable)
+    const weighted = (roundedRawPct * category.weight) / 100;
 
     return {
       category,
       earnedPoints: Math.round(rawPct),
       maxPoints: 100,
-      rawPercentage: Math.round(rawPct * 10) / 10,
-      transmutedPercentage: Math.round(rawPct * 10) / 10,
+      rawPercentage: roundedRawPct,
+      transmutedPercentage: roundedRawPct,
       weightedContribution: Math.round(weighted * 10) / 10,
       assessmentCount: attStats.total,
       isTransmutable: false,
@@ -336,12 +431,14 @@ export function calculateCategorySummary(
     };
   }
 
-  // Regular non-attendance flat category (e.g. Project 40%, Examination 25%)
+  // Standalone regular category (e.g. Project 40%, Examination 25%, Written Works 30%)
   const categoryAssessments = assessments.filter((a) => {
     if (a.subjectId !== subjectId) return false;
     if (period && (a.period || 'prelim') !== period) return false;
     return a.categoryId === category.id || a.parentCategoryId === category.id;
   });
+
+  const isTransmutable = useTransmutation && isTransmutableComponent(category);
 
   if (categoryAssessments.length === 0) {
     return {
@@ -373,7 +470,8 @@ export function calculateCategorySummary(
   const rawPct = totalMax > 0 ? (totalEarned / totalMax) * 100 : 0;
   const roundedRawPct = Math.round(rawPct * 10) / 10;
 
-  // Projects are NOT transmutable: they are fixed grades only.
+  // Transmute ONLY Written Works, Performance Tasks, and Exam.
+  // Attendance and Projects remain fixed.
   let effectivePct = roundedRawPct;
   if (isTransmutable && categoryAssessments.length > 0) {
     effectivePct = transmuteGrade(roundedRawPct, true);

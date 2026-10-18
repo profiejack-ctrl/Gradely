@@ -10,6 +10,7 @@ import { NeuCircularGauge } from '../common/NeuProgress';
 import {
   calculateStudentSubjectPerformance,
   calculateAttendanceStats,
+  isAttendanceCategory,
 } from '../../utils/gradeCalculator';
 import { getStudentEnrolledSubjects } from '../../utils/enrollmentUtils';
 import {
@@ -438,6 +439,36 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
                     </span>
                   </div>
 
+                  {/* Subcategories Breakdown if available */}
+                  {catSummary.subCategorySummaries && catSummary.subCategorySummaries.length > 0 && (
+                    <div className="space-y-1 py-1 border-t border-slate-200/50 dark:border-slate-700/50 text-[11px]">
+                      {catSummary.subCategorySummaries.map((sub) => (
+                        <div key={sub.subCategory.id} className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{sub.subCategory.name} ({sub.subCategory.weight}%)</span>
+                            {sub.isTransmutable ? (
+                              <span className="text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800">
+                                ⚡ Transmuted
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1 py-0.2 rounded border border-indigo-200 dark:border-indigo-800">
+                                Fixed
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {sub.rawPercentage}%
+                            {sub.isTransmutable && sub.assessmentCount > 0 && sub.transmutedPercentage !== sub.rawPercentage && (
+                              <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">
+                                → {sub.transmutedPercentage}%
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between text-xs flex-wrap gap-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-slate-500">
@@ -447,9 +478,13 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
                         <span className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
                           Fixed Grade
                         </span>
+                      ) : isAttendanceCategory(catSummary.category) ? (
+                        <span className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                          Fixed (Attendance)
+                        </span>
                       ) : catSummary.isTransmutable && catSummary.transmutedPercentage !== undefined && catSummary.assessmentCount > 0 ? (
                         <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
-                          ⚡ Transmuted: {catSummary.transmutedPercentage}%
+                          Effective: {catSummary.transmutedPercentage}%
                         </span>
                       ) : null}
                     </div>

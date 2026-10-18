@@ -6,7 +6,14 @@ import { NeuCard } from '../common/NeuCard';
 import { NeuButton } from '../common/NeuButton';
 import { NeuBadge } from '../common/NeuBadge';
 import { NeuCircularGauge } from '../common/NeuProgress';
-import { calculateStudentSubjectPerformance, convertToGPA, transmuteGrade, isProjectCategory } from '../../utils/gradeCalculator';
+import {
+  calculateStudentSubjectPerformance,
+  convertToGPA,
+  transmuteGrade,
+  isProjectCategory,
+  isAttendanceCategory,
+  isTransmutableComponent,
+} from '../../utils/gradeCalculator';
 import { getStudentEnrolledSubjects } from '../../utils/enrollmentUtils';
 import { Calculator, Sparkles, RefreshCw, ArrowLeft, Target } from 'lucide-react';
 
@@ -82,6 +89,11 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
       const initialCatMap: Record<string, number> = {};
       actualPerf.categories.forEach((c) => {
         initialCatMap[c.category.id] = c.rawPercentage;
+        if (c.subCategorySummaries) {
+          c.subCategorySummaries.forEach((sub) => {
+            initialCatMap[sub.subCategory.id] = sub.rawPercentage;
+          });
+        }
       });
       setSimulatedCategoryScores(initialCatMap);
     }
@@ -104,14 +116,29 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
       (simulatedPeriodScores.finals || 0) * 0.4;
   } else {
     currentSubject.matrix.forEach((cat) => {
-      const rawVal =
-        simulatedCategoryScores[cat.id] !== undefined
-          ? simulatedCategoryScores[cat.id]
-          : 85;
-      const isProject = isProjectCategory(cat);
-      const canTransmute = currentSubject.useTransmutation !== false && !isProject && (cat.isTransmutable !== false);
-      const effectiveVal = canTransmute ? transmuteGrade(rawVal, true) : rawVal;
-      simulatedFinal += (effectiveVal * cat.weight) / 100;
+      if (cat.subCategories && cat.subCategories.length > 0) {
+        let catEffective = 0;
+        cat.subCategories.forEach((sub) => {
+          const subRaw =
+            simulatedCategoryScores[sub.id] !== undefined
+              ? simulatedCategoryScores[sub.id]
+              : (simulatedCategoryScores[cat.id] !== undefined ? simulatedCategoryScores[cat.id] : 85);
+          const subTransmutable =
+            currentSubject.useTransmutation !== false && isTransmutableComponent(sub, cat);
+          const subEffective = subTransmutable ? transmuteGrade(subRaw, true) : subRaw;
+          catEffective += (subEffective * sub.weight) / 100;
+        });
+        simulatedFinal += (catEffective * cat.weight) / 100;
+      } else {
+        const rawVal =
+          simulatedCategoryScores[cat.id] !== undefined
+            ? simulatedCategoryScores[cat.id]
+            : 85;
+        const canTransmute =
+          currentSubject.useTransmutation !== false && isTransmutableComponent(cat);
+        const effectiveVal = canTransmute ? transmuteGrade(rawVal, true) : rawVal;
+        simulatedFinal += (effectiveVal * cat.weight) / 100;
+      }
     });
   }
 
@@ -143,6 +170,11 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
     const initialCatMap: Record<string, number> = {};
     actualPerf.categories.forEach((c) => {
       initialCatMap[c.category.id] = c.rawPercentage;
+      if (c.subCategorySummaries) {
+        c.subCategorySummaries.forEach((sub) => {
+          initialCatMap[sub.subCategory.id] = sub.rawPercentage;
+        });
+      }
     });
     setSimulatedCategoryScores(initialCatMap);
   };
@@ -158,6 +190,11 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
       const map: Record<string, number> = {};
       currentSubject.matrix.forEach((c) => {
         map[c.id] = score;
+        if (c.subCategories) {
+          c.subCategories.forEach((sub) => {
+            map[sub.id] = score;
+          });
+        }
       });
       setSimulatedCategoryScores(map);
     }
@@ -379,19 +416,41 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
             /* Mode 2: Category Matrix */
             <div className="space-y-3">
               {currentSubject.matrix.map((cat) => {
-                const currentVal =
-                  simulatedCategoryScores[cat.id] !== undefined
-                    ? simulatedCategoryScores[cat.id]
-                    : 85;
+                const hasSubs = Boolean(cat.subCategories && cat.subCategories.length > 0);
+                let catEffectiveVal = 0;
+
+                if (hasSubs) {
+                  cat.subCategories!.forEach((sub) => {
+                    const subVal =
+                      simulatedCategoryScores[sub.id] !== undefined
+                        ? simulatedCategoryScores[sub.id]
+                        : (simulatedCategoryScores[cat.id] !== undefined ? simulatedCategoryScores[cat.id] : 85);
+                    const isSubTransmutable =
+                      currentSubject.useTransmutation !== false && isTransmutableComponent(sub, cat);
+                    const subEff = isSubTransmutable ? transmuteGrade(subVal, true) : subVal;
+                    catEffectiveVal += (subEff * sub.weight) / 100;
+                  });
+                } else {
+                  const currentVal =
+                    simulatedCategoryScores[cat.id] !== undefined
+                      ? simulatedCategoryScores[cat.id]
+                      : 85;
+                  const canTransmute =
+                    currentSubject.useTransmutation !== false && isTransmutableComponent(cat);
+                  catEffectiveVal = canTransmute ? transmuteGrade(currentVal, true) : currentVal;
+                }
+
+                const roundedCatEffective = Math.round(catEffectiveVal * 10) / 10;
+                const weightedPts = Math.round(((roundedCatEffective * cat.weight) / 100) * 10) / 10;
                 const isProject = isProjectCategory(cat);
-                const canTransmute = currentSubject.useTransmutation !== false && !isProject && (cat.isTransmutable !== false);
-                const effectiveVal = canTransmute ? transmuteGrade(currentVal, true) : currentVal;
-                const weightedPts = Math.round(((effectiveVal * cat.weight) / 100) * 10) / 10;
+                const isAttendance = isAttendanceCategory(cat);
+                const canTransmuteParent =
+                  currentSubject.useTransmutation !== false && !hasSubs && isTransmutableComponent(cat);
 
                 return (
                   <div
                     key={cat.id}
-                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2"
+                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2.5"
                   >
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -406,9 +465,14 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
                             Fixed Grade
                           </span>
                         )}
-                        {canTransmute && (
+                        {isAttendance && (
+                          <span className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                            Fixed (Attendance)
+                          </span>
+                        )}
+                        {canTransmuteParent && (
                           <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
-                            Transmuted: {effectiveVal}%
+                            Transmuted: {roundedCatEffective}%
                           </span>
                         )}
                       </div>
@@ -421,33 +485,113 @@ export const GradeSimulator: React.FC<GradeSimulatorProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={currentVal}
-                        onChange={(e) => handleCategorySliderChange(cat.id, Number(e.target.value))}
-                        className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
-                      />
+                    {/* Subcategories Sliders if Category has Sub-items (e.g. Class Standing) */}
+                    {hasSubs ? (
+                      <div className="pl-3 border-l-2 border-indigo-200 dark:border-indigo-800/60 space-y-2.5 pt-1">
+                        {cat.subCategories!.map((sub) => {
+                          const subVal =
+                            simulatedCategoryScores[sub.id] !== undefined
+                              ? simulatedCategoryScores[sub.id]
+                              : 85;
+                          const isSubTransmutable =
+                            currentSubject.useTransmutation !== false && isTransmutableComponent(sub, cat);
+                          const subEff = isSubTransmutable ? transmuteGrade(subVal, true) : subVal;
 
-                      <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg shrink-0">
+                          return (
+                            <div key={sub.id} className="space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                    {sub.name}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    ({sub.weight}%)
+                                  </span>
+                                  {isSubTransmutable ? (
+                                    <span className="text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800">
+                                      ⚡ Transmuted: {subEff}%
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1 py-0.2 rounded border border-indigo-200 dark:border-indigo-800">
+                                      Fixed Grade
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="font-semibold text-slate-700 dark:text-slate-300 text-[11px]">
+                                  Raw: {subVal}%
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="100"
+                                  value={subVal}
+                                  onChange={(e) =>
+                                    handleCategorySliderChange(sub.id, Number(e.target.value))
+                                  }
+                                  className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                                />
+                                <div className="flex items-center gap-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-md shrink-0">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={subVal}
+                                    onChange={(e) =>
+                                      handleCategorySliderChange(
+                                        sub.id,
+                                        Math.min(100, Math.max(0, Number(e.target.value)))
+                                      )
+                                    }
+                                    className="w-7 bg-transparent text-[11px] font-bold text-slate-900 dark:text-slate-100 text-center outline-none"
+                                  />
+                                  <span className="text-[10px] text-slate-400 font-bold">%</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* Flat Category Slider */
+                      <div className="flex items-center gap-3">
                         <input
-                          type="number"
+                          type="range"
                           min="0"
                           max="100"
-                          value={currentVal}
-                          onChange={(e) =>
-                            handleCategorySliderChange(
-                              cat.id,
-                              Math.min(100, Math.max(0, Number(e.target.value)))
-                            )
+                          value={
+                            simulatedCategoryScores[cat.id] !== undefined
+                              ? simulatedCategoryScores[cat.id]
+                              : 85
                           }
-                          className="w-8 bg-transparent text-xs font-bold text-slate-900 dark:text-slate-100 text-center outline-none"
+                          onChange={(e) => handleCategorySliderChange(cat.id, Number(e.target.value))}
+                          className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
                         />
-                        <span className="text-xs text-slate-400 font-bold">%</span>
+
+                        <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg shrink-0">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={
+                              simulatedCategoryScores[cat.id] !== undefined
+                                ? simulatedCategoryScores[cat.id]
+                                : 85
+                            }
+                            onChange={(e) =>
+                              handleCategorySliderChange(
+                                cat.id,
+                                Math.min(100, Math.max(0, Number(e.target.value)))
+                              )
+                            }
+                            className="w-8 bg-transparent text-xs font-bold text-slate-900 dark:text-slate-100 text-center outline-none"
+                          />
+                          <span className="text-xs text-slate-400 font-bold">%</span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}

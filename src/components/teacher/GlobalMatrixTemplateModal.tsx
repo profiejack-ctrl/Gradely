@@ -4,7 +4,13 @@ import { GradingMatrixTemplate, MatrixCategory, MatrixSubCategory } from '../../
 import { NeuModal } from '../common/NeuModal';
 import { NeuButton } from '../common/NeuButton';
 import { NeuBadge } from '../common/NeuBadge';
-import { validateMatrixTotal, validateSubCategoriesTotal, isProjectCategory } from '../../utils/gradeCalculator';
+import {
+  validateMatrixTotal,
+  validateSubCategoriesTotal,
+  isProjectCategory,
+  isAttendanceCategory,
+  isTransmutableComponent,
+} from '../../utils/gradeCalculator';
 import {
   Globe,
   Plus,
@@ -399,7 +405,11 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
                           )}
                           {(() => {
                             const isProject = isProjectCategory(cat);
-                            const transmutable = cat.isTransmutable !== undefined ? cat.isTransmutable : !isProject;
+                            const isAttendance = isAttendanceCategory(cat);
+                            const transmutable =
+                              cat.isTransmutable !== undefined
+                                ? cat.isTransmutable
+                                : (!isProject && !isAttendance && isTransmutableComponent(cat));
                             return (
                               <button
                                 type="button"
@@ -463,38 +473,52 @@ export const GlobalMatrixTemplateModal: React.FC<GlobalMatrixTemplateModalProps>
                             </span>
                           </div>
 
-                          {cat.subCategories?.map((sub) => (
-                            <div
-                              key={sub.id}
-                              className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs"
-                            >
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                {sub.name}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="range"
-                                  min="1"
-                                  max="100"
-                                  value={sub.weight}
-                                  onChange={(e) =>
-                                    handleSubWeightChange(cat.id, sub.id, Number(e.target.value))
-                                  }
-                                  className="w-16 accent-indigo-600 cursor-pointer"
-                                />
-                                <span className="font-bold text-indigo-600 w-8 text-right">
-                                  {sub.weight}%
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteSubCategory(cat.id, sub.id)}
-                                  className="text-slate-400 hover:text-rose-500 p-0.5"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                          {cat.subCategories?.map((sub) => {
+                            const isSubTransmutable = isTransmutableComponent(sub, cat);
+                            return (
+                              <div
+                                key={sub.id}
+                                className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs"
+                              >
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                    {sub.name}
+                                  </span>
+                                  <span
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                                      isSubTransmutable
+                                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                                        : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                                    }`}
+                                  >
+                                    {isSubTransmutable ? '⚡ Transmutable' : '📌 Fixed Grade'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="range"
+                                    min="1"
+                                    max="100"
+                                    value={sub.weight}
+                                    onChange={(e) =>
+                                      handleSubWeightChange(cat.id, sub.id, Number(e.target.value))
+                                    }
+                                    className="w-16 accent-indigo-600 cursor-pointer"
+                                  />
+                                  <span className="font-bold text-indigo-600 w-8 text-right">
+                                    {sub.weight}%
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSubCategory(cat.id, sub.id)}
+                                    className="text-slate-400 hover:text-rose-500 p-0.5"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
 
                           {/* Add Subcategory row */}
                           <form
