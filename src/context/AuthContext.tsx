@@ -49,7 +49,35 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const SESSION_USER_CACHE_KEY = 'gradely_session_user_cache_v1';
+
+function loadCachedSessionUser(): User | null {
+  try {
+    if (!hasSession()) return null;
+    const raw = sessionStorage.getItem(SESSION_USER_CACHE_KEY) || localStorage.getItem(SESSION_USER_CACHE_KEY);
+    return raw ? safeUser(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedSessionUser(user: User | null): void {
+  try {
+    if (user) {
+      const serialized = JSON.stringify(safeUser(user));
+      sessionStorage.setItem(SESSION_USER_CACHE_KEY, serialized);
+      localStorage.setItem(SESSION_USER_CACHE_KEY, serialized);
+    } else {
+      sessionStorage.removeItem(SESSION_USER_CACHE_KEY);
+      localStorage.removeItem(SESSION_USER_CACHE_KEY);
+    }
+  } catch {
+    // Ignore storage quota limits
+  }
+}
+
 function clearSensitiveCache() {
+  saveCachedSessionUser(null);
   for (let i = localStorage.length - 1; i >= 0; i -= 1) {
     const key = localStorage.key(i);
     if (key?.startsWith('gradely_data_store_v3_') || key === 'gradely_offline_api_queue_v1') {
@@ -74,8 +102,9 @@ function loadCachedUsers(): User[] {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>(loadCachedUsers);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedInitialUser = React.useMemo(() => loadCachedSessionUser(), []);
+  const [currentUser, setCurrentUser] = useState<User | null>(cachedInitialUser);
+  const [isLoading, setIsLoading] = useState<boolean>(() => !cachedInitialUser && hasSession());
   const [theme, setTheme] = useState<'light' | 'dark'>(() => localStorage.getItem('gradely_theme') === 'dark' ? 'dark' : 'light');
 
   const refreshUsers = useCallback(() => setUsers(loadCachedUsers()), []);
@@ -84,16 +113,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mounted = true;
     const restoreSession = async () => {
       if (!hasSession()) {
+        saveCachedSessionUser(null);
         if (mounted) setIsLoading(false);
         return;
       }
       const response = await authApi.me();
-      if (mounted && response.data) setCurrentUser(safeUser(response.data as User));
-      else clearToken();
+      if (mounted && response.data) {
+        const validated = safeUser(response.data as User);
+        setCurrentUser(validated);
+        saveCachedSessionUser(validated);
+      } else if (response.status === 401) {
+        clearToken();
+        saveCachedSessionUser(null);
+        if (mounted) setCurrentUser(null);
+      }
       if (mounted) setIsLoading(false);
     };
     void restoreSession();
     const handleUnauthorized = () => {
+      saveCachedSessionUser(null);
       setCurrentUser(null);
     };
     window.addEventListener('gradely:auth_unauthorized', handleUnauthorized);
@@ -131,6 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const result = response.data as { token: string; user: User };
     setToken(result.token);
     const user = safeUser(result.user);
+    saveCachedSessionUser(user);
     setCurrentUser(user);
     setUsers(previous => [...previous.filter(item => item.id !== user.id), user]);
     setIsLoading(false);
@@ -152,6 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const result = response.data as { token: string; user: User };
     setToken(result.token);
     const user = safeUser(result.user);
+    saveCachedSessionUser(user);
     setCurrentUser(user);
     setUsers(previous => [...previous.filter(item => item.id !== user.id), user]);
     setIsLoading(false);
@@ -163,7 +203,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (newPassword.trim().length < 8) return { success: false, error: 'Password must be at least 8 characters.' };
     const response = await authApi.changePassword(newPassword.trim());
     if (response.error) return { success: false, error: response.error };
-    setCurrentUser({ ...currentUser, mustChangePassword: false });
+    const updated = { ...currentUser, mustChangePassword: false };
+    saveCachedSessionUser(updated);
+    setCurrentUser(updated);
     return { success: true };
   };
 
@@ -208,6 +250,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const result = response.data as { token: string; user: User };
     if (result.token) setToken(result.token);
     const updated = safeUser(result.user);
+    saveCachedSessionUser(updated);
     setCurrentUser(updated);
     setUsers(previous => [...previous.filter(item => item.id !== updated.id), updated]);
     void syncEngine.flushQueue();
@@ -228,13 +271,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const response = await authApi.updateProfile({ ...data, ...(newPassword ? { newPassword: newPassword.trim() } : {}) });
     if (response.error) return { success: false, error: response.error };
-    setCurrentUser({ ...currentUser, ...safeUser({ ...currentUser, ...data }), mustChangePassword: newPassword ? false : currentUser.mustChangePassword });
+    const updated = { ...currentUser, ...safeUser({ ...currentUser, ...data }), mustChangePassword: newPassword ? false : currentUser.mustChangePassword };
+    saveCachedSessionUser(updated);
+    setCurrentUser(updated);
     return { success: true };
   };
 
   const signOut = async () => {
     await authApi.logout();
     clearToken();
+    saveCachedSessionUser(null);
     clearSensitiveCache();
     setCurrentUser(null);
     setIsLoading(false);

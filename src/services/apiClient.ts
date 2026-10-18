@@ -13,7 +13,7 @@ export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3
 
 const TOKEN_KEY = 'gradely_api_token_v1';
 const SESSION_KEY = 'gradely_session_v1';
-const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_TIMEOUT_MS = 12000;
 
 // --------------------------------------------------------------------------
 // Token management
@@ -212,14 +212,23 @@ export function saveOfflineQueue(queue: OfflineMutation[]): void {
 }
 
 export function addToOfflineQueue(table: string, action: 'UPSERT' | 'DELETE', payload: any): void {
+  addBatchToOfflineQueue([{ table, action, payload }]);
+}
+
+export function addBatchToOfflineQueue(mutations: Array<{ table: string; action: 'UPSERT' | 'DELETE'; payload: any }>): void {
+  if (!mutations || mutations.length === 0) return;
   const queue = loadOfflineQueue();
-  queue.push({
-    id: `mut-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`,
-    table,
-    action,
-    payload,
-    timestamp: Date.now(),
-  });
+  const now = Date.now();
+  for (let i = 0; i < mutations.length; i++) {
+    const m = mutations[i];
+    queue.push({
+      id: `mut-${now.toString(36)}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+      table: m.table,
+      action: m.action,
+      payload: m.payload,
+      timestamp: now,
+    });
+  }
   saveOfflineQueue(queue);
 }
 
@@ -227,40 +236,51 @@ export function clearOfflineQueue(): void {
   localStorage.removeItem(OFFLINE_QUEUE_KEY);
 }
 
-/** Flush all queued offline mutations to the backend */
+/** Flush all queued offline mutations to the backend in fast, chunked batches */
 export async function flushOfflineQueue(): Promise<{ success: boolean; synced: number }> {
-  const queue = loadOfflineQueue();
-  if (queue.length === 0) return { success: true, synced: 0 };
+  const BATCH_SIZE = 100; // Small, resilient batches to avoid payload limits & timeouts
+  let totalSynced = 0;
 
-  const mutations = queue.map(q => ({
-    table: q.table,
-    action: q.action,
-    payload: q.payload,
-  }));
-
-  const result = await dataApi.sync(mutations);
-  if (result.status === 0) {
-    // Still offline
-    return { success: false, synced: 0 };
-  }
-
-  if (!result.error && result.data?.success !== false) {
-    const sentIds = new Set(queue.map(q => q.id));
+  while (true) {
     const currentQueue = loadOfflineQueue();
-    const remaining = currentQueue.filter(q => !sentIds.has(q.id));
-    saveOfflineQueue(remaining);
-    return { success: true, synced: queue.length };
+    if (currentQueue.length === 0) break;
+
+    const chunk = currentQueue.slice(0, BATCH_SIZE);
+    const mutations = chunk.map(q => ({
+      table: q.table,
+      action: q.action,
+      payload: q.payload,
+    }));
+
+    const result = await dataApi.sync(mutations);
+    if (result.status === 0) {
+      // Offline or network error
+      return { success: false, synced: totalSynced };
+    }
+
+    if (!result.error && result.data?.success !== false) {
+      const chunkIds = new Set(chunk.map(q => q.id));
+      const remaining = loadOfflineQueue().filter(q => !chunkIds.has(q.id));
+      saveOfflineQueue(remaining);
+      totalSynced += chunk.length;
+    } else {
+      // Clear unrecoverable client errors (400, 403, 413, 422, or server validation rejection)
+      const isUnrecoverable =
+        result.status === 400 ||
+        result.status === 403 ||
+        result.status === 413 ||
+        result.status === 422 ||
+        (result.status === 200 && result.data?.success === false);
+
+      if (isUnrecoverable) {
+        console.warn(`[SyncEngine] Clearing unrecoverable mutations from queue (${result.status}):`, result.error || result.data?.errors);
+        const chunkIds = new Set(chunk.map(q => q.id));
+        const remaining = loadOfflineQueue().filter(q => !chunkIds.has(q.id));
+        saveOfflineQueue(remaining);
+      }
+      return { success: false, synced: totalSynced };
+    }
   }
 
-  // Clear unrecoverable client errors (400, 403, 422) to prevent infinite retry loops
-  if (result.status === 400 || result.status === 403 || result.status === 422) {
-    console.warn(`[SyncEngine] Clearing unrecoverable mutations from queue (${result.status}: ${result.error || 'Unauthorized/Invalid'}).`);
-    const sentIds = new Set(queue.map(q => q.id));
-    const currentQueue = loadOfflineQueue();
-    const remaining = currentQueue.filter(q => !sentIds.has(q.id));
-    saveOfflineQueue(remaining);
-    return { success: false, synced: 0 };
-  }
-
-  return { success: false, synced: 0 };
+  return { success: true, synced: totalSynced };
 }

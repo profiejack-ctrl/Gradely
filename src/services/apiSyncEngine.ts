@@ -11,7 +11,7 @@
  */
 
 import {
-  addToOfflineQueue,
+  addBatchToOfflineQueue,
   loadOfflineQueue,
   clearOfflineQueue,
   flushOfflineQueue,
@@ -37,6 +37,11 @@ class ApiSyncEngine {
     const pendingQueue = loadOfflineQueue();
     if (pendingQueue.length > 0) {
       this.status = 'pending';
+      if (this.isOnline && typeof window !== 'undefined') {
+        setTimeout(() => {
+          if (hasSession()) void this.flushQueue();
+        }, 300);
+      }
     }
 
     if (typeof window !== 'undefined') {
@@ -97,9 +102,8 @@ class ApiSyncEngine {
 
   enqueueBatch(table: string, action: 'UPSERT' | 'DELETE', payloads: any[]) {
     if (!payloads || payloads.length === 0) return;
-    for (const p of payloads) {
-      addToOfflineQueue(table, action, p);
-    }
+    const items = payloads.map(p => ({ table, action, payload: p }));
+    addBatchToOfflineQueue(items);
 
     if (this.isOnline) {
       this.flushQueue();

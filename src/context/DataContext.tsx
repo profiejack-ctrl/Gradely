@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   Section,
   Subject,
@@ -159,7 +159,7 @@ interface DataContextType {
   resetToDefault: () => void;
   getRawData: () => Record<string, unknown>;
   importData: (jsonData: string) => boolean;
-  pullFromCloud: () => Promise<void>;
+  pullFromCloud: (force?: boolean) => Promise<void>;
   pushAllToCloud: () => Promise<{ success: boolean; error?: any }>;
   startFreshOfficial: (options?: { wipeCloud?: boolean }) => Promise<void>;
   rolloverAcademicYear: (
@@ -282,50 +282,63 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(`${STORAGE_KEY}_learning_plans`, JSON.stringify(learningPlans));
   }, [learningPlans]);
 
+  const lastPullRef = useRef<number>(0);
+  const isPullingRef = useRef<boolean>(false);
+
   // Pull authoritative remote data directly from Supabase cloud
-  const pullFromCloud = useCallback(async () => {
+  const pullFromCloud = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && (now - lastPullRef.current < 5000 || isPullingRef.current)) {
+      return;
+    }
     // If local mutations are queued or in flight, do not stomp pending local changes
     if (syncEngine.getQueue().length > 0) return;
 
-    const remote = await syncEngine.pullAll();
-    if (!remote) return;
+    isPullingRef.current = true;
+    lastPullRef.current = now;
+    try {
+      const remote = await syncEngine.pullAll();
+      if (!remote) return;
 
-    if (remote.users) {
-      setAllUsers(remote.users);
-    }
-    if (remote.sections) {
-      setSections(remote.sections);
-    }
-    if (remote.matrixTemplates) {
-      const filtered = remote.matrixTemplates.filter((t: GradingMatrixTemplate) => !isDeprecatedTemplate(t.name, t.id));
-      setMatrixTemplates(filtered.length > 0 ? filtered : INITIAL_GLOBAL_TEMPLATES);
-    }
-    if (remote.subjects) {
-      setSubjects(remote.subjects.map((s: Subject) => {
-        let matrix = s.matrix || [];
-        let useTransmutation = s.useTransmutation !== undefined ? s.useTransmutation : true;
-        if (matrix && !Array.isArray(matrix) && typeof matrix === 'object') {
-          useTransmutation = (matrix as any).useTransmutation !== false;
-          matrix = (matrix as any).categories || [];
-        }
-        return {
-          ...s,
-          matrix,
-          useTransmutation,
-        };
-      }));
-    }
-    if (remote.assessments) {
-      setAssessments(remote.assessments);
-    }
-    if (remote.scores) {
-      setScores(remote.scores);
-    }
-    if (remote.attendance) {
-      setAttendanceRecords(remote.attendance);
-    }
-    if (remote.holidays) {
-      setHolidays(remote.holidays);
+      if (remote.users) {
+        setAllUsers(remote.users);
+      }
+      if (remote.sections) {
+        setSections(remote.sections);
+      }
+      if (remote.matrixTemplates) {
+        const filtered = remote.matrixTemplates.filter((t: GradingMatrixTemplate) => !isDeprecatedTemplate(t.name, t.id));
+        setMatrixTemplates(filtered.length > 0 ? filtered : INITIAL_GLOBAL_TEMPLATES);
+      }
+      if (remote.subjects) {
+        setSubjects(remote.subjects.map((s: Subject) => {
+          let matrix = s.matrix || [];
+          let useTransmutation = s.useTransmutation !== undefined ? s.useTransmutation : true;
+          if (matrix && !Array.isArray(matrix) && typeof matrix === 'object') {
+            useTransmutation = (matrix as any).useTransmutation !== false;
+            matrix = (matrix as any).categories || [];
+          }
+          return {
+            ...s,
+            matrix,
+            useTransmutation,
+          };
+        }));
+      }
+      if (remote.assessments) {
+        setAssessments(remote.assessments);
+      }
+      if (remote.scores) {
+        setScores(remote.scores);
+      }
+      if (remote.attendance) {
+        setAttendanceRecords(remote.attendance);
+      }
+      if (remote.holidays) {
+        setHolidays(remote.holidays);
+      }
+    } finally {
+      isPullingRef.current = false;
     }
   }, []);
 
@@ -343,18 +356,43 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [allUsers, sections, matrixTemplates, subjects, assessments, scores, attendance, holidays]);
 
   useEffect(() => {
-    // Initial fetch from cloud
-    pullFromCloud();
+    // Initial sync on mount: flush any pending offline mutations first, then pull authoritative cloud data
+    const initSync = async () => {
+      if (syncEngine.getQueue().length > 0) {
+        await syncEngine.flushQueue();
+      }
+      await pullFromCloud(true);
+    };
+    void initSync();
 
-    // Subscribe to realtime database changes
+    // Subscribe to realtime database changes (poll every 30s)
     syncEngine.initRealtime(() => {
-      pullFromCloud();
+      void pullFromCloud();
     });
 
-    // Cross-tab synchronization via localStorage storage event
+    // Cross-tab synchronization via localStorage: sync state in-memory directly without triggering network calls
     const handleStorage = (e: StorageEvent) => {
-      if (e.key && e.key.startsWith(STORAGE_KEY)) {
-        pullFromCloud();
+      if (!e.key || !e.key.startsWith(STORAGE_KEY) || !e.newValue) return;
+      try {
+        const parsed = JSON.parse(e.newValue);
+        if (e.key.endsWith('_users')) setAllUsers(parsed);
+        else if (e.key.endsWith('_sections')) setSections(parsed);
+        else if (e.key.endsWith('_subjects')) {
+          setSubjects(parsed.map((s: Subject) => ({
+            ...s,
+            matrix: Array.isArray(s.matrix) ? s.matrix : (s.matrix as any)?.categories || [],
+            useTransmutation: s.useTransmutation !== undefined ? s.useTransmutation : true,
+          })));
+        } else if (e.key.endsWith('_assessments')) setAssessments(parsed);
+        else if (e.key.endsWith('_scores')) setScores(parsed);
+        else if (e.key.endsWith('_attendance')) setAttendanceRecords(parsed);
+        else if (e.key.endsWith('_templates')) {
+          const valid = parsed.filter((t: GradingMatrixTemplate) => !isDeprecatedTemplate(t.name, t.id));
+          setMatrixTemplates(valid.length > 0 ? valid : INITIAL_GLOBAL_TEMPLATES);
+        } else if (e.key.endsWith('_holidays')) setHolidays(parsed);
+        else if (e.key.endsWith('_learning_plans')) setLearningPlans(parsed);
+      } catch {
+        // ignore parse error
       }
     };
     window.addEventListener('storage', handleStorage);
