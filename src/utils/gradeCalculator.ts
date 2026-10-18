@@ -309,6 +309,78 @@ export function getAssessmentComponentType(
 }
 
 /**
+ * Accurately determines if an assessment belongs to a specific subcategory within a parent category.
+ * Prevents examinations, projects, and other components from being erroneously matched by loose title substrings.
+ */
+export function isAssessmentInSubCategory(
+  assessment: Assessment,
+  subCat: MatrixSubCategory,
+  parentCat: MatrixCategory,
+  matrix?: MatrixCategory[]
+): boolean {
+  // 1. Direct subcategory ID match (highest precedence)
+  if (assessment.categoryId === subCat.id) return true;
+
+  // 2. If assessment explicitly references a different parent category, reject
+  if (assessment.parentCategoryId && assessment.parentCategoryId !== parentCat.id) {
+    return false;
+  }
+
+  // 3. If matrix is provided, check if assessment explicitly belongs to another top-level category or another subcategory
+  if (matrix) {
+    for (const cat of matrix) {
+      if (cat.id !== parentCat.id && assessment.categoryId === cat.id) {
+        return false;
+      }
+      if (cat.subCategories) {
+        for (const s of cat.subCategories) {
+          if (s.id !== subCat.id && assessment.categoryId === s.id) {
+            return false;
+          }
+        }
+      }
+    }
+  }
+
+  // 4. If assessment categoryId is the parent category (or parentCategoryId matches),
+  // match against the subcategory using the institutional component type
+  if (assessment.categoryId === parentCat.id || assessment.parentCategoryId === parentCat.id) {
+    const compType = matrix ? getAssessmentComponentType(assessment, matrix) : null;
+    const subName = subCat.name.toLowerCase();
+    const subId = subCat.id.toLowerCase();
+
+    if (compType === 'exams') {
+      return subName.includes('exam') || subName.includes('periodical') || subId.includes('exam');
+    }
+    if (compType === 'projects') {
+      return subName.includes('project') || subName.includes('cbo') || subName.includes('output');
+    }
+    if (compType === 'quizzes') {
+      return subName.includes('written') || subName.includes('quiz') || subName.includes('ww') || subId.includes('ww') || subId.includes('quiz');
+    }
+    if (compType === 'activities') {
+      return subName.includes('task') || subName.includes('performance') || subName.includes('pt') || subName.includes('activity');
+    }
+
+    // Secondary fallback based on exact subcategory keywords
+    if (subName.includes('quiz') || subName.includes('written') || subId.includes('ww') || subId.includes('quiz')) {
+      const title = assessment.title.toLowerCase();
+      // Must NOT be an examination
+      if (title.includes('exam') || title.includes('periodical')) return false;
+      return title.includes('quiz') || title.includes('written') || title.includes('ww') || title.includes('seatwork');
+    }
+
+    if (subName.includes('task') || subName.includes('performance') || subId.includes('pt') || subId.includes('task')) {
+      const title = assessment.title.toLowerCase();
+      if (title.includes('exam') || title.includes('periodical')) return false;
+      return title.includes('task') || title.includes('performance') || title.includes('pt') || title.includes('activity') || title.includes('lab');
+    }
+  }
+
+  return false;
+}
+
+/**
  * Bestlink College of the Philippines (BCP) Official Transmutation Table (Annex A - Collegiate Level)
  * Initial Grade = (Raw Score / Total Items) * 100
  *
@@ -379,7 +451,8 @@ export function calculateSubCategorySummary(
   scores: ScoreRecord[],
   attendanceRecords: AttendanceRecord[],
   period?: GradingPeriod,
-  useTransmutation: boolean = true
+  useTransmutation: boolean = true,
+  matrix?: MatrixCategory[]
 ): SubCategoryScoreSummary {
   const isAttendance = isAttendanceCategory(subCat) || isAttendanceCategory(parentCat);
 
@@ -407,12 +480,7 @@ export function calculateSubCategorySummary(
     if (a.subjectId !== subjectId) return false;
     if (period && (a.period || 'prelim') !== period) return false;
 
-    return (
-      a.categoryId === subCat.id ||
-      (a.parentCategoryId === parentCat.id && a.categoryId === subCat.id) ||
-      (!a.parentCategoryId &&
-        a.title.toLowerCase().includes(subCat.name.toLowerCase().slice(0, 4)))
-    );
+    return isAssessmentInSubCategory(a, subCat, parentCat, matrix);
   });
 
   // Only Written Works, Performance Tasks, and Exam are transmutable
@@ -474,7 +542,8 @@ export function calculateCategorySummary(
   scores: ScoreRecord[],
   attendanceRecords: AttendanceRecord[],
   period?: GradingPeriod,
-  useTransmutation: boolean = true
+  useTransmutation: boolean = true,
+  matrix?: MatrixCategory[]
 ): CategoryScoreSummary {
   const isProject = isProjectCategory(category);
   const isAttendance = isAttendanceCategory(category);
@@ -491,7 +560,8 @@ export function calculateCategorySummary(
         scores,
         attendanceRecords,
         period,
-        useTransmutation
+        useTransmutation,
+        matrix || [category]
       )
     );
 
@@ -686,7 +756,8 @@ export function calculatePeriodSummary(
       scores,
       attendanceRecords,
       period,
-      useTransmutation
+      useTransmutation,
+      subject.matrix
     )
   );
 
@@ -782,7 +853,8 @@ export function calculateStudentSubjectPerformance(
         scores,
         attendanceRecords,
         undefined,
-        useTransmutation
+        useTransmutation,
+        subject.matrix
       )
     );
     rawFinalGrade = defaultCategories.reduce((sum, c) => sum + (c.rawPercentage * c.category.weight) / 100, 0);
@@ -819,7 +891,8 @@ export function calculateStudentSubjectPerformance(
       scores,
       attendanceRecords,
       undefined,
-      useTransmutation
+      useTransmutation,
+      subject.matrix
     )
   );
 

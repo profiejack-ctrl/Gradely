@@ -1,5 +1,5 @@
 import { Subject, User, Assessment, ScoreRecord, AttendanceRecord, GradingPeriod, MatrixCategory } from '../types';
-import { calculateStudentSubjectPerformance } from './gradeCalculator';
+import { calculateStudentSubjectPerformance, getAssessmentComponentType } from './gradeCalculator';
 import { formatLastFirst, compareByLastName } from './nameUtils';
 
 /**
@@ -66,63 +66,15 @@ function classifyAssessments(
   const exams: Assessment[] = [];
   const remainder: Assessment[] = [];
 
-  const getCategoryText = (a: Assessment): string => {
-    const parentCat = matrix.find((c) => c.id === a.parentCategoryId || c.id === a.categoryId);
-    const subCat = parentCat?.subCategories?.find((s) => s.id === a.categoryId);
-    return `${parentCat?.name || ''} ${subCat?.name || ''}`.toLowerCase();
-  };
-
   for (const a of subjectAssessments) {
-    const catText = getCategoryText(a);
-    const titleText = a.title.toLowerCase();
-
-    // 1. Quizzes / Written Works (User instruction: Written works = Quiz)
-    if (
-      catText.includes('written') ||
-      catText.includes('quiz') ||
-      titleText.includes('quiz') ||
-      titleText.includes('written') ||
-      /^q\s*\d+/i.test(a.title) ||
-      /^ww\s*\d+/i.test(a.title)
-    ) {
-      writtenWorks.push(a);
-    }
-    // 2. Exams
-    else if (
-      catText.includes('exam') ||
-      catText.includes('periodical') ||
-      titleText.includes('exam') ||
-      titleText.includes('periodical')
-    ) {
+    const compType = getAssessmentComponentType(a, matrix);
+    if (compType === 'exams') {
       exams.push(a);
-    }
-    // 3. Projects & Outputs
-    else if (
-      catText.includes('project') ||
-      catText.includes('output') ||
-      catText.includes('requirement') ||
-      catText.includes('capstone') ||
-      titleText.includes('project') ||
-      titleText.includes('output') ||
-      titleText.includes('requirement') ||
-      titleText.includes('capstone')
-    ) {
+    } else if (compType === 'projects') {
       projects.push(a);
-    }
-    // 4. Tasks / Performance Tasks / Class Activities
-    else if (
-      catText.includes('task') ||
-      catText.includes('performance') ||
-      catText.includes('activity') ||
-      catText.includes('act') ||
-      catText.includes('lab') ||
-      catText.includes('seatwork') ||
-      titleText.includes('task') ||
-      titleText.includes('activity') ||
-      titleText.includes('lab') ||
-      /^pt\s*\d+/i.test(a.title) ||
-      /^act\s*\d+/i.test(a.title)
-    ) {
+    } else if (compType === 'quizzes') {
+      writtenWorks.push(a);
+    } else if (compType === 'activities') {
       tasks.push(a);
     } else {
       remainder.push(a);

@@ -19,6 +19,7 @@ import {
   calculateStudentSubjectPerformance,
   calculatePeriodSummary,
   calculateAttendanceStats,
+  isAssessmentInSubCategory,
 } from '../../utils/gradeCalculator';
 import {
   exportGradebookToOfficialSMSCSV,
@@ -871,13 +872,8 @@ export const Gradebook: React.FC<GradebookProps> = ({
                       });
                     } else {
                       // Find assessments in this period matching subcategory
-                      const subAssessments = periodAssessments.filter(
-                        (a) =>
-                          a.categoryId === subCat.id ||
-                          (a.parentCategoryId === cat.id && a.categoryId === subCat.id) ||
-                          (!a.parentCategoryId &&
-                            a.categoryId === cat.id &&
-                            a.title.toLowerCase().includes(subCat.name.toLowerCase().slice(0, 4)))
+                      const subAssessments = periodAssessments.filter((a) =>
+                        isAssessmentInSubCategory(a, subCat, cat, activeSubject.matrix)
                       );
 
                       if (subAssessments.length === 0) {
