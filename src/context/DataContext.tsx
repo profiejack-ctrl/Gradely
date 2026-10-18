@@ -871,23 +871,50 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const colToAssessmentMap: Record<string, Assessment> = {};
 
     importAssessments.forEach((ass) => {
-      const existing = updatedAssessments.find(
+      // 1. Tag match via colHeader
+      let existing = updatedAssessments.find(
         (a) =>
           a.subjectId === subjectId &&
           (a.period || 'prelim') === period &&
-          (a.title.toLowerCase().trim() === ass.title.toLowerCase().trim() ||
-            a.title.toLowerCase().includes(ass.title.toLowerCase()) ||
-            ass.title.toLowerCase().includes(a.title.toLowerCase()))
+          a.description?.includes(`[csv_col:${ass.colHeader}]`)
       );
+
+      // 2. Exact title match in same period and category
+      if (!existing) {
+        existing = updatedAssessments.find(
+          (a) =>
+            a.subjectId === subjectId &&
+            (a.period || 'prelim') === period &&
+            a.title.toLowerCase().trim() === ass.title.toLowerCase().trim() &&
+            (a.categoryId === ass.categoryId || a.parentCategoryId === ass.parentCategoryId)
+        );
+      }
+
+      // 3. Special cleanup of previous mis-mapped exam:
+      // If ass is Examination and an assessment exists in the same subject & period with maxScore 50 and category in Examination that was previously named "Written Work 2" or "Written Work", re-purpose and correct it!
+      if (!existing && (ass.colHeader.includes('Examination') || ass.title.includes('Examination'))) {
+        existing = updatedAssessments.find(
+          (a) =>
+            a.subjectId === subjectId &&
+            (a.period || 'prelim') === period &&
+            a.maxScore === ass.maxScore &&
+            (a.categoryId === ass.categoryId || a.parentCategoryId === ass.parentCategoryId) &&
+            a.title.toLowerCase().includes('written work')
+        );
+      }
+
+      const description = `[csv_col:${ass.colHeader}]`;
 
       if (existing) {
         const updated: Assessment = {
           ...existing,
+          title: ass.title,
           maxScore: ass.maxScore,
           categoryId: ass.categoryId || existing.categoryId,
           parentCategoryId: ass.parentCategoryId || existing.parentCategoryId,
+          description,
         };
-        const idx = updatedAssessments.findIndex((a) => a.id === existing.id);
+        const idx = updatedAssessments.findIndex((a) => a.id === existing!.id);
         updatedAssessments[idx] = updated;
         colToAssessmentMap[ass.colHeader] = updated;
         assessmentUpserts.push({
@@ -912,6 +939,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           title: ass.title,
           maxScore: ass.maxScore,
           date: new Date().toISOString().split('T')[0],
+          description,
         };
         updatedAssessments.push(newAss);
         colToAssessmentMap[ass.colHeader] = newAss;

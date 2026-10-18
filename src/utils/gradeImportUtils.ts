@@ -52,22 +52,27 @@ export function resolveMatrixCategoryForImport(
 } {
   const cleanHeader = colHeader.toLowerCase().replace(/_+/g, ' ');
 
-  // 1. Quizzes / Written Works (e.g. Class Standing_Written_Works_2)
-  if (cleanHeader.includes('written') || cleanHeader.includes('quiz') || cleanHeader.includes('ww')) {
-    const numMatch = colHeader.match(/\d+$/);
-    const num = numMatch ? numMatch[0] : '';
-    const suggestedTitle = num ? `Written Work ${num}` : 'Written Work';
+  // 1. Examinations (Checked FIRST so 'Written Examination' is not caught by Written Works)
+  if (cleanHeader.includes('examination') || cleanHeader.includes('exam') || cleanHeader.includes('periodical')) {
+    const isOral = cleanHeader.includes('oral') || cleanHeader.includes('defense');
+    let periodName = 'Prelim';
+    if (cleanHeader.includes('midterm')) periodName = 'Midterm';
+    if (cleanHeader.includes('final')) periodName = 'Finals';
 
-    // Search inside matrix subcategories first
+    const suggestedTitle = isOral
+      ? `${periodName} Oral Examination`
+      : `${periodName} Written Examination`;
+
     for (const cat of matrix) {
-      if (cat.subCategories) {
-        const sub = cat.subCategories.find(
-          (s) =>
-            s.name.toLowerCase().includes('written') ||
-            s.name.toLowerCase().includes('quiz') ||
-            s.id.toLowerCase().includes('ww')
-        );
-        if (sub) {
+      if (
+        cat.name.toLowerCase().includes('exam') ||
+        cat.name.toLowerCase().includes('periodical') ||
+        cat.id.toLowerCase().includes('exam')
+      ) {
+        if (cat.subCategories && cat.subCategories.length > 0) {
+          const sub = isOral
+            ? (cat.subCategories.find((s) => s.name.toLowerCase().includes('oral')) || cat.subCategories[0])
+            : (cat.subCategories.find((s) => s.name.toLowerCase().includes('written') || s.id.toLowerCase().includes('we')) || cat.subCategories[0]);
           return {
             categoryId: sub.id,
             parentCategoryId: cat.id,
@@ -75,65 +80,24 @@ export function resolveMatrixCategoryForImport(
             suggestedTitle,
           };
         }
+        return {
+          categoryId: cat.id,
+          categoryName: cat.name,
+          suggestedTitle,
+        };
       }
     }
 
-    // Fallback to parent category
-    const parent = matrix.find(
-      (c) =>
-        c.name.toLowerCase().includes('class standing') ||
-        c.name.toLowerCase().includes('written')
-    ) || matrix[0];
-
+    const examCat = matrix.find((c) => c.name.toLowerCase().includes('exam')) || matrix[matrix.length - 1];
     return {
-      categoryId: parent?.subCategories?.[0]?.id || parent?.id || 'cat-ww',
-      parentCategoryId: parent?.id,
-      categoryName: parent?.name || 'Class Standing',
+      categoryId: examCat?.subCategories?.[0]?.id || examCat?.id || 'cat-exam',
+      parentCategoryId: examCat?.id,
+      categoryName: examCat?.name || 'Examination',
       suggestedTitle,
     };
   }
 
-  // 2. Performance Tasks / Classwork / Activities (e.g. Class Standing_Task_1)
-  if (cleanHeader.includes('task') || cleanHeader.includes('performance') || cleanHeader.includes('pt') || cleanHeader.includes('act')) {
-    const numMatch = colHeader.match(/\d+$/);
-    const num = numMatch ? numMatch[0] : '';
-    const suggestedTitle = num ? `Performance Task ${num}` : 'Performance Task';
-
-    for (const cat of matrix) {
-      if (cat.subCategories) {
-        const sub = cat.subCategories.find(
-          (s) =>
-            s.name.toLowerCase().includes('task') ||
-            s.name.toLowerCase().includes('performance') ||
-            s.name.toLowerCase().includes('act') ||
-            s.id.toLowerCase().includes('pt')
-        );
-        if (sub) {
-          return {
-            categoryId: sub.id,
-            parentCategoryId: cat.id,
-            categoryName: `${cat.name} › ${sub.name}`,
-            suggestedTitle,
-          };
-        }
-      }
-    }
-
-    const parent = matrix.find(
-      (c) =>
-        c.name.toLowerCase().includes('class standing') ||
-        c.name.toLowerCase().includes('task')
-    ) || matrix[0];
-
-    return {
-      categoryId: parent?.subCategories?.[0]?.id || parent?.id || 'cat-pt',
-      parentCategoryId: parent?.id,
-      categoryName: parent?.name || 'Class Standing',
-      suggestedTitle,
-    };
-  }
-
-  // 3. Projects & Course-Based Outputs (e.g. Project_Output_1, Project_Requirement_1)
+  // 2. Projects & Course-Based Outputs (e.g. Project_Output_1, Project_Requirement_1)
   if (cleanHeader.includes('project') || cleanHeader.includes('output') || cleanHeader.includes('cbo') || cleanHeader.includes('requirement')) {
     const numMatch = colHeader.match(/\d+$/);
     const num = numMatch ? numMatch[0] : '';
@@ -176,27 +140,22 @@ export function resolveMatrixCategoryForImport(
     };
   }
 
-  // 4. Examinations (e.g. Examination_Prelim_Written_Examination, Examination_Prelim_Oral_Examination)
-  if (cleanHeader.includes('examination') || cleanHeader.includes('exam') || cleanHeader.includes('periodical')) {
-    const isOral = cleanHeader.includes('oral') || cleanHeader.includes('defense');
-    let periodName = 'Prelim';
-    if (cleanHeader.includes('midterm')) periodName = 'Midterm';
-    if (cleanHeader.includes('final')) periodName = 'Finals';
-
-    const suggestedTitle = isOral
-      ? `${periodName} Oral Examination`
-      : `${periodName} Written Examination`;
+  // 3. Performance Tasks / Classwork / Activities (e.g. Class Standing_Task_1)
+  if (cleanHeader.includes('task') || cleanHeader.includes('performance') || cleanHeader.includes('pt') || cleanHeader.includes('act')) {
+    const numMatch = colHeader.match(/\d+$/);
+    const num = numMatch ? numMatch[0] : '';
+    const suggestedTitle = num ? `Performance Task ${num}` : 'Performance Task';
 
     for (const cat of matrix) {
-      if (
-        cat.name.toLowerCase().includes('exam') ||
-        cat.name.toLowerCase().includes('periodical') ||
-        cat.id.toLowerCase().includes('exam')
-      ) {
-        if (cat.subCategories && cat.subCategories.length > 0) {
-          const sub = isOral
-            ? (cat.subCategories.find((s) => s.name.toLowerCase().includes('oral')) || cat.subCategories[0])
-            : (cat.subCategories.find((s) => s.name.toLowerCase().includes('written') || s.id.toLowerCase().includes('we')) || cat.subCategories[0]);
+      if (cat.subCategories) {
+        const sub = cat.subCategories.find(
+          (s) =>
+            s.name.toLowerCase().includes('task') ||
+            s.name.toLowerCase().includes('performance') ||
+            s.name.toLowerCase().includes('act') ||
+            s.id.toLowerCase().includes('pt')
+        );
+        if (sub) {
           return {
             categoryId: sub.id,
             parentCategoryId: cat.id,
@@ -204,19 +163,60 @@ export function resolveMatrixCategoryForImport(
             suggestedTitle,
           };
         }
-        return {
-          categoryId: cat.id,
-          categoryName: cat.name,
-          suggestedTitle,
-        };
       }
     }
 
-    const examCat = matrix.find((c) => c.name.toLowerCase().includes('exam')) || matrix[matrix.length - 1];
+    const parent = matrix.find(
+      (c) =>
+        c.name.toLowerCase().includes('class standing') ||
+        c.name.toLowerCase().includes('task')
+    ) || matrix[0];
+
     return {
-      categoryId: examCat?.subCategories?.[0]?.id || examCat?.id || 'cat-exam',
-      parentCategoryId: examCat?.id,
-      categoryName: examCat?.name || 'Examination',
+      categoryId: parent?.subCategories?.[0]?.id || parent?.id || 'cat-pt',
+      parentCategoryId: parent?.id,
+      categoryName: parent?.name || 'Class Standing',
+      suggestedTitle,
+    };
+  }
+
+  // 4. Quizzes / Written Works (e.g. Class Standing_Written_Works_2) - only if NOT an exam
+  if ((cleanHeader.includes('written') || cleanHeader.includes('quiz') || cleanHeader.includes('ww')) && !cleanHeader.includes('exam')) {
+    const numMatch = colHeader.match(/\d+$/);
+    const num = numMatch ? numMatch[0] : '';
+    const suggestedTitle = num ? `Written Work ${num}` : 'Written Work';
+
+    // Search inside matrix subcategories first
+    for (const cat of matrix) {
+      if (cat.subCategories) {
+        const sub = cat.subCategories.find(
+          (s) =>
+            s.name.toLowerCase().includes('written') ||
+            s.name.toLowerCase().includes('quiz') ||
+            s.id.toLowerCase().includes('ww')
+        );
+        if (sub) {
+          return {
+            categoryId: sub.id,
+            parentCategoryId: cat.id,
+            categoryName: `${cat.name} › ${sub.name}`,
+            suggestedTitle,
+          };
+        }
+      }
+    }
+
+    // Fallback to parent category
+    const parent = matrix.find(
+      (c) =>
+        c.name.toLowerCase().includes('class standing') ||
+        c.name.toLowerCase().includes('written')
+    ) || matrix[0];
+
+    return {
+      categoryId: parent?.subCategories?.[0]?.id || parent?.id || 'cat-ww',
+      parentCategoryId: parent?.id,
+      categoryName: parent?.name || 'Class Standing',
       suggestedTitle,
     };
   }
