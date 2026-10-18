@@ -187,6 +187,127 @@ export function isTransmutableComponent(
   return isWW || isPT || isExam;
 }
 
+export type AssessmentComponentType = 'quizzes' | 'activities' | 'projects' | 'exams';
+
+/**
+ * Accurately categorizes an assessment into its institutional component:
+ * - 'quizzes': Written Works / Quizzes (WW, seatwork, written exercises)
+ * - 'activities': Performance Tasks (PT, laboratory tasks, coding activities, practicals)
+ * - 'projects': Projects (CBO, Course-based Output, Capstone, Portfolio, OCR)
+ * - 'exams': Periodic Examinations (WE, OE, Major term exams)
+ */
+export function getAssessmentComponentType(
+  assessment: Assessment,
+  matrix: MatrixCategory[]
+): AssessmentComponentType {
+  let matchedSub: MatrixSubCategory | undefined;
+  let matchedCat: MatrixCategory | undefined;
+
+  for (const cat of matrix) {
+    if (cat.id === assessment.categoryId || cat.id === assessment.parentCategoryId) {
+      matchedCat = cat;
+    }
+    if (cat.subCategories) {
+      const sub = cat.subCategories.find((s) => s.id === assessment.categoryId);
+      if (sub) {
+        matchedSub = sub;
+        matchedCat = cat;
+        break;
+      }
+    }
+  }
+
+  const title = (assessment.title || '').toLowerCase();
+  const subName = (matchedSub?.name || '').toLowerCase();
+  const subId = (matchedSub?.id || assessment.categoryId || '').toLowerCase();
+  const catName = (matchedCat?.name || '').toLowerCase();
+  const catId = (matchedCat?.id || assessment.parentCategoryId || '').toLowerCase();
+
+  // 1. Examination (WE / OE / Major periodic exams)
+  if (
+    title.includes('exam') ||
+    title.includes('periodical') ||
+    subName.includes('exam') ||
+    subName.includes('we') ||
+    subName.includes('oe') ||
+    subId.endsWith('-we') ||
+    subId.endsWith('-oe') ||
+    subId.includes('exam') ||
+    catName.includes('exam') ||
+    catId.includes('exam')
+  ) {
+    return 'exams';
+  }
+
+  // 2. Project (CBO, OCR, Capstone, Portfolio, Output, Requirement)
+  if (
+    title.includes('project') ||
+    title.includes('cbo') ||
+    title.includes('capstone') ||
+    title.includes('portfolio') ||
+    title.includes('ocr') ||
+    subName.includes('project') ||
+    subName.includes('cbo') ||
+    subName.includes('course-based') ||
+    subName.includes('output') ||
+    subName.includes('ocr') ||
+    subName.includes('portfolio') ||
+    subId.includes('cbo') ||
+    subId.includes('proj') ||
+    subId.includes('ocr') ||
+    subId.includes('portfolio') ||
+    catName.includes('project') ||
+    catName.includes('cbo') ||
+    catId.includes('proj') ||
+    catId.includes('cbo')
+  ) {
+    return 'projects';
+  }
+
+  // 3. Written Works / Quizzes (Written Works = Quiz)
+  if (
+    title.includes('written') ||
+    title.includes('quiz') ||
+    title.includes('ww') ||
+    title.includes('seatwork') ||
+    title.includes('essay') ||
+    subName.includes('written') ||
+    subName.includes('quiz') ||
+    subId.endsWith('-ww') ||
+    subId.includes('written') ||
+    subId.includes('quiz')
+  ) {
+    return 'quizzes';
+  }
+
+  // 4. Performance Tasks (Class activities, tasks, hands-on lab exercises)
+  if (
+    title.includes('task') ||
+    title.includes('performance') ||
+    title.includes('pt') ||
+    title.includes('activity') ||
+    title.includes('lab') ||
+    title.includes('demonstration') ||
+    title.includes('simulation') ||
+    title.includes('recitation') ||
+    title.includes('practicum') ||
+    subName.includes('task') ||
+    subName.includes('performance') ||
+    subName.includes('activity') ||
+    subName.includes('practicum') ||
+    subName.includes('hands-on') ||
+    subId.endsWith('-pt') ||
+    subId.includes('task') ||
+    subId.includes('pt') ||
+    catName.includes('performance') ||
+    catName.includes('task')
+  ) {
+    return 'activities';
+  }
+
+  return 'activities';
+}
+
 /**
  * Bestlink College of the Philippines (BCP) Official Transmutation Table (Annex A - Collegiate Level)
  * Initial Grade = (Raw Score / Total Items) * 100

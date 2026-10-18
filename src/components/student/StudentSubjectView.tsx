@@ -11,6 +11,7 @@ import {
   calculateStudentSubjectPerformance,
   calculateAttendanceStats,
   isAttendanceCategory,
+  getAssessmentComponentType,
 } from '../../utils/gradeCalculator';
 import { getStudentEnrolledSubjects } from '../../utils/enrollmentUtils';
 import {
@@ -118,36 +119,24 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
     return !a.period || a.period === activePeriod;
   });
 
-  // Group assessments by category
+  // Group assessments by category using official institutional component classifier
   const quizzes = displayedAssessments.filter(
-    (a) => a.title.toLowerCase().includes('quiz') || a.categoryId.includes('quiz')
+    (a) => getAssessmentComponentType(a, currentSubject.matrix) === 'quizzes'
   );
   const activities = displayedAssessments.filter(
-    (a) =>
-      a.title.toLowerCase().includes('lab') ||
-      a.title.toLowerCase().includes('act') ||
-      a.title.toLowerCase().includes('pt') ||
-      a.categoryId.includes('act') ||
-      a.categoryId.includes('pt') ||
-      a.categoryId.includes('lab')
+    (a) => getAssessmentComponentType(a, currentSubject.matrix) === 'activities'
   );
   const projects = displayedAssessments.filter(
-    (a) =>
-      a.title.toLowerCase().includes('proj') ||
-      a.title.toLowerCase().includes('capstone') ||
-      a.categoryId.includes('proj')
+    (a) => getAssessmentComponentType(a, currentSubject.matrix) === 'projects'
   );
   const exams = displayedAssessments.filter(
-    (a) =>
-      a.title.toLowerCase().includes('exam') ||
-      a.title.toLowerCase().includes('term') ||
-      a.categoryId.includes('exam')
+    (a) => getAssessmentComponentType(a, currentSubject.matrix) === 'exams'
   );
 
   const recordTypeOptions = [
-    { value: 'all', label: 'All Records', badge: displayedAssessments.length + subjectAttendance.length },
+    { value: 'all', label: 'All Records', badge: displayedAssessments.length },
     { value: 'attendance', label: 'Attendance', badge: `${attStats.rate}%` },
-    { value: 'quizzes', label: 'Quizzes', badge: quizzes.length },
+    { value: 'quizzes', label: 'Written Works (Quizzes)', badge: quizzes.length },
     { value: 'activities', label: 'Performance Tasks', badge: activities.length },
     { value: 'projects', label: 'Projects', badge: projects.length },
     { value: 'exams', label: 'Exams', badge: exams.length },
@@ -186,7 +175,19 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
     const scoreRec = scores.find((s) => s.assessmentId === ass.id && s.studentId === student.id);
     const earned = scoreRec?.score !== undefined ? scoreRec.score : null;
     const percentage = earned !== null ? Math.round((earned / ass.maxScore) * 100) : null;
-    const cat = currentSubject.matrix.find((c) => c.id === ass.categoryId || c.id === ass.parentCategoryId);
+    let categoryDisplay = 'Assessment';
+    for (const c of currentSubject.matrix) {
+      if (c.id === ass.categoryId || c.id === ass.parentCategoryId) {
+        categoryDisplay = c.name;
+      }
+      if (c.subCategories) {
+        const sub = c.subCategories.find((s) => s.id === ass.categoryId);
+        if (sub) {
+          categoryDisplay = `${c.name} › ${sub.name}`;
+          break;
+        }
+      }
+    }
 
     return (
       <div
@@ -197,7 +198,7 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
           <div className="flex items-center gap-1.5 flex-wrap">
             <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{ass.title}</h4>
             <NeuBadge variant="neutral" size="sm">
-              {cat?.name || 'Assessment'}
+              {categoryDisplay}
             </NeuBadge>
             <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
               {(ass.period || 'prelim').toUpperCase()}
@@ -545,7 +546,7 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
                 quizzes.map((ass) => renderAssessmentCard(ass))
               ) : (
                 <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs text-slate-500">
-                  No quizzes recorded for this period yet.
+                  No written works or quizzes recorded for this period yet.
                 </div>
               )
             )}
@@ -555,7 +556,7 @@ export const StudentSubjectView: React.FC<StudentSubjectViewProps> = ({
                 activities.map((ass) => renderAssessmentCard(ass))
               ) : (
                 <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs text-slate-500">
-                  No lab exercises or performance tasks recorded for this period yet.
+                  No performance tasks or lab exercises recorded for this period yet.
                 </div>
               )
             )}
