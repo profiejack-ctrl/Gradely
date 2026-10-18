@@ -9,7 +9,11 @@
  * Works offline: mutations queue to localStorage and flush when reconnected.
  */
 
-export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
+export const API_BASE_URL = (
+  import.meta.env.VITE_API_URL !== undefined
+    ? import.meta.env.VITE_API_URL
+    : (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? '' : 'http://localhost:3001')
+).replace(/\/+$/, '');
 
 const TOKEN_KEY = 'gradely_api_token_v1';
 const SESSION_KEY = 'gradely_session_v1';
