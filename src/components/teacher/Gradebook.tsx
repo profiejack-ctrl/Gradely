@@ -41,6 +41,7 @@ import {
   ChevronDown,
   FileSpreadsheet,
   Zap,
+  ExternalLink,
 } from 'lucide-react';
 import { compareByLastName, formatLastFirst } from '../../utils/nameUtils';
 import { isStudentInSection } from '../../utils/enrollmentUtils';
@@ -1010,10 +1011,19 @@ export const Gradebook: React.FC<GradebookProps> = ({
                           return (
                             <th
                               key={col.key}
-                              className="p-2.5 text-center border-r border-slate-200 dark:border-slate-800 min-w-[95px]"
+                              onClick={() =>
+                                onNavigateToAttendance(
+                                  selectedSectionId,
+                                  activeSubject.id,
+                                  currentPeriod
+                                )
+                              }
+                              className="p-2.5 text-center border-r border-slate-200 dark:border-slate-800 min-w-[95px] cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-colors group select-none"
+                              title="Click to view and manage daily roll-calls in Attendance Roll"
                             >
-                              <div className="font-bold text-slate-700 dark:text-slate-300">
-                                {col.subCategory?.name || 'Attendance'}
+                              <div className="font-bold text-slate-700 dark:text-slate-300 flex items-center justify-center gap-1">
+                                <span>{col.subCategory?.name || 'Attendance'}</span>
+                                <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors" />
                               </div>
                               <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
                                 {col.subCategory ? `${col.subCategory.weight}% of CS` : 'Roll %'}
@@ -1147,7 +1157,15 @@ export const Gradebook: React.FC<GradebookProps> = ({
                                 return (
                                   <td
                                     key={`${col.key}-${student.id}`}
-                                    className="p-2 text-center border-r border-slate-200 dark:border-slate-800"
+                                    onClick={() =>
+                                      onNavigateToAttendance(
+                                        selectedSectionId,
+                                        activeSubject.id,
+                                        currentPeriod
+                                      )
+                                    }
+                                    className="p-2 text-center border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-800/50 transition-colors"
+                                    title={`Attendance Rate: ${attStats.rate}% (${attStats.present} present, ${attStats.late} late, ${attStats.absent} absent in ${attStats.total} sessions). Click to view in Attendance Roll.`}
                                   >
                                     <span
                                       className={`font-mono font-bold px-1.5 py-0.5 rounded text-xs ${

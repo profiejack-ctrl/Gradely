@@ -25,7 +25,7 @@ export interface ParseMasterlistResult {
  * Standard RFC 4180 compliant CSV line parser supporting quoted cells with commas
  */
 export function parseCSVToRows(text: string): string[][] {
-  const clean = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  const clean = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
   if (!clean) return [];
 
   const rows: string[][] = [];

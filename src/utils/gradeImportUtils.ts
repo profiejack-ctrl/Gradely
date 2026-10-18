@@ -319,8 +319,8 @@ export function parseOfficialGradesCSV(
     if (!header) continue;
 
     if (/attendance|att_/i.test(header)) {
-      const matchNum = header.match(/\d+$/);
-      const sessionNumber = matchNum ? parseInt(matchNum[0], 10) : attendanceColumns.length + 1;
+      const matchNum = header.match(/\d+/g);
+      const sessionNumber = matchNum ? parseInt(matchNum[matchNum.length - 1], 10) : attendanceColumns.length + 1;
       attendanceColumns.push({
         colIdx: c,
         colHeader: header,
