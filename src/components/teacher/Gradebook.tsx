@@ -14,6 +14,7 @@ import { NeuSelect, NeuInput } from '../common/NeuInput';
 import { AssessmentModal } from './AssessmentModal';
 import { MatrixConfigModal } from './MatrixConfigModal';
 import { BulkStudentUploadModal } from './BulkStudentUploadModal';
+import { ImportOfficialGradesModal } from './ImportOfficialGradesModal';
 import {
   calculateStudentSubjectPerformance,
   calculatePeriodSummary,
@@ -133,6 +134,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
   const [initialAssessmentPeriod, setInitialAssessmentPeriod] = useState<GradingPeriod>('prelim');
   const [isMatrixModalOpen, setIsMatrixModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isImportGradesModalOpen, setIsImportGradesModalOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   // Active subject object
@@ -554,6 +556,16 @@ export const Gradebook: React.FC<GradebookProps> = ({
             Import Masterlist
           </NeuButton>
 
+          <NeuButton
+            variant="secondary"
+            size="sm"
+            onClick={() => setIsImportGradesModalOpen(true)}
+            leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+            title="Import official 36-column SMS prelim/midterm/finals grade CSV"
+          >
+            Import Grades (CSV)
+          </NeuButton>
+
           {/* Export CSV / SMS Dropdown */}
           <div className="relative">
             <div className="inline-flex rounded-xl shadow-xs overflow-hidden">
@@ -586,6 +598,23 @@ export const Gradebook: React.FC<GradebookProps> = ({
                 <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-30 py-1 text-xs divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in-50 zoom-in-95 duration-100">
                   <button
                     type="button"
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      setIsImportGradesModalOpen(true);
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/80 flex items-start gap-2.5 text-slate-700 dark:text-slate-200 transition-colors"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-slate-900 dark:text-white">Import Official Grades (CSV)</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                        Import official 36-column Prelim/Midterm/Finals grade CSV with auto-mapping & attendance logs.
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={handleExportOfficialSMS}
                     className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/80 flex items-start gap-2.5 text-slate-700 dark:text-slate-200 transition-colors"
                   >
@@ -603,7 +632,7 @@ export const Gradebook: React.FC<GradebookProps> = ({
                     onClick={handleExportSummaryReport}
                     className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/80 flex items-start gap-2.5 text-slate-700 dark:text-slate-200 transition-colors"
                   >
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                    <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                     <div>
                       <div className="font-semibold text-slate-900 dark:text-white">Collegiate Summary Sheet</div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
@@ -1218,6 +1247,17 @@ export const Gradebook: React.FC<GradebookProps> = ({
         onClose={() => setIsBulkModalOpen(false)}
         sections={accessibleSections}
         selectedSectionId={selectedSectionId}
+        onShowToast={onShowToast}
+      />
+
+      <ImportOfficialGradesModal
+        isOpen={isImportGradesModalOpen}
+        onClose={() => setIsImportGradesModalOpen(false)}
+        subjects={accessibleSubjects}
+        sections={accessibleSections}
+        selectedSubjectId={activeSubject?.id}
+        selectedSectionId={selectedSectionId}
+        activePeriod={activePeriodTab === 'summary' ? 'prelim' : activePeriodTab}
         onShowToast={onShowToast}
       />
 

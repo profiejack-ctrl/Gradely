@@ -33,6 +33,7 @@ import {
   getStudentSectionIds,
   normalizeCourseCode,
 } from '../utils/enrollmentUtils';
+import { formatStudentName } from '../utils/csvParser';
 
 interface DataContextType {
   sections: Section[];
@@ -77,6 +78,39 @@ interface DataContextType {
   // Scores
   setScore: (assessmentId: string, studentId: string, score: number, remarks?: string) => void;
   batchUpdateScores: (updates: { assessmentId: string; studentId: string; score: number; remarks?: string }[]) => void;
+  importOfficialGrades: (payload: {
+    subjectId: string;
+    sectionId: string;
+    period: GradingPeriod;
+    assessments: Array<{
+      colHeader: string;
+      title: string;
+      maxScore: number;
+      categoryId: string;
+      parentCategoryId?: string;
+    }>;
+    scores: Array<{
+      colHeader: string;
+      studentNumber: string;
+      score: number;
+      remarks?: string;
+    }>;
+    attendance?: Array<{
+      sessionIndex: number;
+      studentNumber: string;
+      date: string;
+      status: AttendanceStatus;
+    }>;
+    studentsToEnroll?: Array<{
+      studentNumber: string;
+      name: string;
+    }>;
+  }) => {
+    studentsEnrolled: number;
+    assessmentsCount: number;
+    scoresCount: number;
+    attendanceCount: number;
+  };
 
   // Attendance
   setAttendance: (
@@ -714,6 +748,292 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return copy;
     });
+  };
+
+  const importOfficialGrades = (payload: {
+    subjectId: string;
+    sectionId: string;
+    period: GradingPeriod;
+    assessments: Array<{
+      colHeader: string;
+      title: string;
+      maxScore: number;
+      categoryId: string;
+      parentCategoryId?: string;
+    }>;
+    scores: Array<{
+      colHeader: string;
+      studentNumber: string;
+      score: number;
+      remarks?: string;
+    }>;
+    attendance?: Array<{
+      sessionIndex: number;
+      studentNumber: string;
+      date: string;
+      status: AttendanceStatus;
+    }>;
+    studentsToEnroll?: Array<{
+      studentNumber: string;
+      name: string;
+    }>;
+  }) => {
+    const {
+      subjectId,
+      sectionId,
+      period,
+      assessments: importAssessments,
+      scores: importScores,
+      attendance: importAtt,
+      studentsToEnroll = [],
+    } = payload;
+
+    // 1. Process Students: Enroll any new or existing students into this section
+    const updatedUsers = [...allUsers];
+    const userUpserts: any[] = [];
+    const studentNumberToUserMap: Map<string, User> = new Map();
+
+    // Index existing students
+    updatedUsers.forEach((u) => {
+      if (u.studentNumber) {
+        studentNumberToUserMap.set(u.studentNumber.trim(), u);
+      }
+    });
+
+    if (studentsToEnroll.length > 0) {
+      studentsToEnroll.forEach((st, idx) => {
+        const cleanNumber = (st.studentNumber || '').trim();
+        const existingStudent = cleanNumber ? studentNumberToUserMap.get(cleanNumber) : undefined;
+
+        if (existingStudent) {
+          const secIds = getStudentSectionIds(existingStudent);
+          if (!secIds.includes(sectionId)) {
+            const combinedSecIds = [...secIds, sectionId];
+            const updated: User = {
+              ...existingStudent,
+              sectionId: existingStudent.sectionId || sectionId,
+              sectionIds: combinedSecIds,
+            };
+            const userIdx = updatedUsers.findIndex((u) => u.id === existingStudent.id);
+            if (userIdx >= 0) updatedUsers[userIdx] = updated;
+            studentNumberToUserMap.set(cleanNumber, updated);
+            userUpserts.push({
+              id: updated.id,
+              name: updated.name,
+              email: updated.email,
+              role: updated.role,
+              student_number: updated.studentNumber || null,
+              section_id: formatSectionIds(combinedSecIds),
+              avatar: updated.avatar || null,
+              department: updated.department || null,
+              title: updated.title || null,
+            });
+          }
+        } else {
+          const { displayName, emailHandle } = formatStudentName(st.name || `Student ${cleanNumber}`);
+          const cleanIdSuffix = cleanNumber.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const email = `${emailHandle}${cleanIdSuffix ? `.${cleanIdSuffix}` : `.${idx + 1}`}@student.gradely.edu`;
+          const newStudent: User = {
+            id: `stud-${Date.now().toString(36)}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+            name: displayName,
+            email,
+            role: 'student',
+            studentNumber: cleanNumber,
+            sectionId,
+            sectionIds: [sectionId],
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`,
+          };
+          updatedUsers.push(newStudent);
+          if (cleanNumber) studentNumberToUserMap.set(cleanNumber, newStudent);
+          userUpserts.push({
+            id: newStudent.id,
+            name: newStudent.name,
+            email: newStudent.email,
+            role: newStudent.role,
+            student_number: newStudent.studentNumber || null,
+            section_id: sectionId,
+            avatar: newStudent.avatar || null,
+            department: null,
+            title: null,
+          });
+        }
+      });
+
+      setAllUsers(updatedUsers);
+      if (userUpserts.length > 0) {
+        syncEngine.enqueueBatch('users', 'UPSERT', userUpserts);
+      }
+    }
+
+    // 2. Process Assessments: Create or update target assessments in this subject & period
+    const updatedAssessments = [...assessments];
+    const assessmentUpserts: any[] = [];
+    const colToAssessmentMap: Record<string, Assessment> = {};
+
+    importAssessments.forEach((ass) => {
+      const existing = updatedAssessments.find(
+        (a) =>
+          a.subjectId === subjectId &&
+          (a.period || 'prelim') === period &&
+          (a.title.toLowerCase().trim() === ass.title.toLowerCase().trim() ||
+            a.title.toLowerCase().includes(ass.title.toLowerCase()) ||
+            ass.title.toLowerCase().includes(a.title.toLowerCase()))
+      );
+
+      if (existing) {
+        const updated: Assessment = {
+          ...existing,
+          maxScore: ass.maxScore,
+          categoryId: ass.categoryId || existing.categoryId,
+          parentCategoryId: ass.parentCategoryId || existing.parentCategoryId,
+        };
+        const idx = updatedAssessments.findIndex((a) => a.id === existing.id);
+        updatedAssessments[idx] = updated;
+        colToAssessmentMap[ass.colHeader] = updated;
+        assessmentUpserts.push({
+          id: updated.id,
+          subject_id: updated.subjectId,
+          category_id: updated.categoryId,
+          parent_category_id: updated.parentCategoryId,
+          period: updated.period,
+          title: updated.title,
+          max_score: updated.maxScore,
+          date: updated.date,
+          due_date: updated.dueDate,
+          description: updated.description,
+        });
+      } else {
+        const newAss: Assessment = {
+          id: `ass-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`,
+          subjectId,
+          categoryId: ass.categoryId,
+          parentCategoryId: ass.parentCategoryId,
+          period,
+          title: ass.title,
+          maxScore: ass.maxScore,
+          date: new Date().toISOString().split('T')[0],
+        };
+        updatedAssessments.push(newAss);
+        colToAssessmentMap[ass.colHeader] = newAss;
+        assessmentUpserts.push({
+          id: newAss.id,
+          subject_id: newAss.subjectId,
+          category_id: newAss.categoryId,
+          parent_category_id: newAss.parentCategoryId,
+          period: newAss.period,
+          title: newAss.title,
+          max_score: newAss.maxScore,
+          date: newAss.date,
+          due_date: newAss.dueDate,
+          description: newAss.description,
+        });
+      }
+    });
+
+    setAssessments(updatedAssessments);
+    if (assessmentUpserts.length > 0) {
+      syncEngine.enqueueBatch('assessments', 'UPSERT', assessmentUpserts);
+    }
+
+    // 3. Process Scores
+    const updatedScores = [...scores];
+    const scoreUpserts: any[] = [];
+
+    importScores.forEach((sc) => {
+      const targetAss = colToAssessmentMap[sc.colHeader];
+      const student = studentNumberToUserMap.get((sc.studentNumber || '').trim());
+      if (!targetAss || !student) return;
+
+      const existingIdx = updatedScores.findIndex(
+        (s) => s.assessmentId === targetAss.id && s.studentId === student.id
+      );
+      const recId = existingIdx >= 0
+        ? updatedScores[existingIdx].id
+        : `sc-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`;
+
+      const scoreRecord: ScoreRecord = {
+        id: recId,
+        assessmentId: targetAss.id,
+        studentId: student.id,
+        score: sc.score,
+        remarks: sc.remarks,
+      };
+
+      if (existingIdx >= 0) {
+        updatedScores[existingIdx] = scoreRecord;
+      } else {
+        updatedScores.push(scoreRecord);
+      }
+
+      scoreUpserts.push({
+        id: recId,
+        assessment_id: targetAss.id,
+        student_id: student.id,
+        score: sc.score,
+        remarks: sc.remarks,
+      });
+    });
+
+    setScores(updatedScores);
+    if (scoreUpserts.length > 0) {
+      syncEngine.enqueueBatch('score_records', 'UPSERT', scoreUpserts);
+    }
+
+    // 4. Process Attendance (if provided)
+    const updatedAttendance = [...attendance];
+    const attendanceUpserts: any[] = [];
+
+    if (importAtt && importAtt.length > 0) {
+      importAtt.forEach((att) => {
+        const student = studentNumberToUserMap.get((att.studentNumber || '').trim());
+        if (!student) return;
+
+        const existingIdx = updatedAttendance.findIndex(
+          (a) => a.subjectId === subjectId && a.studentId === student.id && a.date === att.date
+        );
+        const recId = existingIdx >= 0
+          ? updatedAttendance[existingIdx].id
+          : `att-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`;
+
+        const attRecord: AttendanceRecord = {
+          id: recId,
+          subjectId,
+          studentId: student.id,
+          date: att.date,
+          status: att.status,
+          period,
+          note: `Session ${att.sessionIndex}`,
+        };
+
+        if (existingIdx >= 0) {
+          updatedAttendance[existingIdx] = attRecord;
+        } else {
+          updatedAttendance.push(attRecord);
+        }
+
+        attendanceUpserts.push({
+          id: recId,
+          subject_id: subjectId,
+          student_id: student.id,
+          date: att.date,
+          status: att.status,
+          period,
+          note: attRecord.note,
+        });
+      });
+
+      setAttendanceRecords(updatedAttendance);
+      if (attendanceUpserts.length > 0) {
+        syncEngine.enqueueBatch('attendance_records', 'UPSERT', attendanceUpserts);
+      }
+    }
+
+    return {
+      studentsEnrolled: studentsToEnroll.length,
+      assessmentsCount: importAssessments.length,
+      scoresCount: scoreUpserts.length,
+      attendanceCount: attendanceUpserts.length,
+    };
   };
 
   // --- Attendance actions ---
@@ -1514,6 +1834,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteAssessment,
         setScore,
         batchUpdateScores,
+        importOfficialGrades,
         setAttendance,
         markAllAttendance,
         clearAttendanceForDate,
